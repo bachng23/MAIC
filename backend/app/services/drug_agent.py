@@ -8,7 +8,7 @@ from app.models.medication import DrugInfo
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "google/gemini-2.0-flash-exp:free"
+_MODEL = "deepseek/deepseek-v4-pro"
 
 _SYSTEM_PROMPT = """You are a pharmacist AI assistant helping elderly users in Taiwan.
 Query the drug databases provided as tools, then explain the medication in simple language.
