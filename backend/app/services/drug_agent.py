@@ -171,6 +171,22 @@ async def get_drug_info(drug_name: str, drug_name_zh: str | None = None) -> Drug
     search_name = drug_name_zh or drug_name
     openfda_result = await _call_openfda(drug_name)
     taiwan_fda_result = await _call_taiwan_fda(search_name)
+    logger.info(
+        "Drug info lookup start for search_name=%s openfda_found=%s taiwan_fda_found=%s",
+        search_name,
+        "error" not in openfda_result,
+        "error" not in taiwan_fda_result,
+    )
+    if "error" not in openfda_result:
+        logger.info("OpenFDA data preview for %s: %s", drug_name, json.dumps(openfda_result)[:500])
+    else:
+        logger.warning("OpenFDA lookup unavailable for %s: %s", drug_name, openfda_result.get("error"))
+
+    if "error" not in taiwan_fda_result:
+        logger.info("Taiwan FDA data preview for %s: %s", search_name, json.dumps(taiwan_fda_result)[:500])
+    else:
+        logger.warning("Taiwan FDA lookup unavailable for %s: %s", search_name, taiwan_fda_result.get("error"))
+
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user", "content": f"Get drug information for: {search_name}"},
@@ -181,10 +197,17 @@ async def get_drug_info(drug_name: str, drug_name_zh: str | None = None) -> Drug
             response = await _call_openrouter(messages, tools=_TOOLS)
             choice = response["choices"][0]
             message = choice["message"]
+            logger.info(
+                "OpenRouter responded for %s with tool_calls=%s",
+                search_name,
+                bool(message.get("tool_calls")),
+            )
 
             # No tool calls -> final answer
             if not message.get("tool_calls"):
-                return DrugInfo(**_extract_json_content(message.get("content")))
+                parsed = _extract_json_content(message.get("content"))
+                logger.info("OpenRouter returned direct drug info JSON for %s", search_name)
+                return DrugInfo(**parsed)
 
             # Process tool calls
             messages.append(message)
@@ -199,6 +222,7 @@ async def get_drug_info(drug_name: str, drug_name_zh: str | None = None) -> Drug
                 else:
                     result = {"error": "Unknown tool"}
 
+                logger.info("Tool call %s for %s returned error=%s", fn_name, search_name, result.get("error"))
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call["id"],
@@ -206,4 +230,6 @@ async def get_drug_info(drug_name: str, drug_name_zh: str | None = None) -> Drug
                 })
     except Exception as exc:
         logger.exception("Drug info agent failed for %s: %s", search_name, exc)
-        return _fallback_drug_info(search_name, openfda_result, taiwan_fda_result)
+        fallback = _fallback_drug_info(search_name, openfda_result, taiwan_fda_result)
+        logger.warning("Returning fallback drug info for %s with source=%s", search_name, fallback.source)
+        return fallback
