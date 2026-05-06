@@ -57,7 +57,10 @@ _TOOLS = [
 
 async def _call_openfda(drug_name: str) -> dict:
     url = "https://api.fda.gov/drug/label.json"
-    params = {"search": f'brand_name:"{drug_name}"+OR+generic_name:"{drug_name}"', "limit": 1}
+    params = {
+        "search": f'openfda.brand_name:"{drug_name}"+OR+openfda.generic_name:"{drug_name}"',
+        "limit": 1,
+    }
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(url, params=params)
@@ -65,10 +68,17 @@ async def _call_openfda(drug_name: str) -> dict:
                 results = resp.json().get("results", [])
                 if results:
                     r = results[0]
+                    warnings = _first_text(r, "warnings", "warnings_and_cautions", "boxed_warning")
+                    side_effects = _first_text(r, "adverse_reactions")
+                    indications = _first_text(r, "indications_and_usage", "purpose", "description")
+                    geriatric_use = _first_text(r, "geriatric_use")
+                    interactions = _first_text(r, "drug_interactions", "drug_and_or_laboratory_test_interactions")
                     return {
-                        "indications": r.get("indications_and_usage", [""])[0][:500],
-                        "warnings": r.get("warnings", [""])[0][:500],
-                        "side_effects": r.get("adverse_reactions", [""])[0][:500],
+                        "indications": indications[:500],
+                        "warnings": warnings[:500],
+                        "side_effects": side_effects[:500],
+                        "geriatric_use": geriatric_use[:500],
+                        "interactions": interactions[:500],
                     }
     except Exception as exc:
         logger.warning("OpenFDA lookup failed for %s: %s", drug_name, exc)
@@ -126,6 +136,20 @@ def _extract_json_content(raw: str | None) -> dict:
     return json.loads(text.strip())
 
 
+def _first_text(record: dict, *field_names: str) -> str:
+    for field_name in field_names:
+        value = record.get(field_name)
+        if isinstance(value, list) and value:
+            text = str(value[0]).strip()
+            if text:
+                return text
+        elif isinstance(value, str):
+            text = value.strip()
+            if text:
+                return text
+    return ""
+
+
 def _to_list(value: object) -> list[str]:
     if not value:
         return []
@@ -139,6 +163,9 @@ def _fallback_drug_info(drug_name: str, openfda: dict, taiwan_fda: dict) -> Drug
     side_effects = _to_list(openfda.get("side_effects"))
     interactions: list[str] = []
 
+    if openfda.get("interactions"):
+        interactions.extend(_to_list(openfda["interactions"]))
+
     if taiwan_fda.get("ingredients"):
         interactions.append(f"Taiwan FDA ingredients: {taiwan_fda['ingredients']}")
 
@@ -150,7 +177,7 @@ def _fallback_drug_info(drug_name: str, openfda: dict, taiwan_fda: dict) -> Drug
 
     source = " / ".join(source_parts) if source_parts else "Fallback"
     main_effects = openfda.get("indications") or f"Information for {drug_name} is temporarily limited. Please verify with a pharmacist."
-    elderly_notes = "Use extra caution in elderly patients and review dosing, kidney function, and interactions."
+    elderly_notes = openfda.get("geriatric_use") or "Use extra caution in elderly patients and review dosing, kidney function, and interactions."
 
     if not warnings:
         warnings = ["Consult a pharmacist if symptoms change or multiple medications are being taken."]
