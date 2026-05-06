@@ -1,0 +1,38 @@
+.DS_Store
+
+# Root-level local artifacts
+.idea/
+.vscode/
+
+# Swift / Xcode caches
+.build/
+.swiftpm/
+DerivedData/
+
+# Flutter / Dart generated artifacts
+**/.dart_tool/
+**/build/
+**/.flutter-plugins-dependencies
+**/.pub/
+**/.pub-cache/
+
+# Local backend artifacts
+backend/.env
+backend/.venv/
+backend/.pytest_cache/
+backend/__pycache__/
+backend/app/**/__pycache__/
+backend/scripts/**/__pycache__/
+backend/tests/**/__pycache__/
+backend/tests/fixtures/
+
+# Keep the demo frontend focused on iOS handoff only
+frontend/.metadata
+frontend/README.md
+frontend/android/
+frontend/ios/RunnerTests/
+frontend/linux/
+frontend/macos/
+frontend/test/
+frontend/web/
+frontend/windows/

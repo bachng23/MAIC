@@ -1,0 +1,26 @@
+{
+  "prediction": {
+    "medication_log_id": "log-123",
+    "anomaly_level": 2,
+    "anomaly_type": "high_hr",
+    "confidence": 0.95,
+    "timestamp": "2026-05-06T08:42:00Z",
+    "deviations": [
+      {
+        "signal": "heart_rate",
+        "current_value": 126.0,
+        "baseline_median": 82.0,
+        "delta": 44.0,
+        "percent_delta": 53.7
+      }
+    ],
+    "baseline_status": "ready"
+  },
+  "backend_report": {
+    "medication_log_id": "log-123",
+    "anomaly_level": 2,
+    "anomaly_type": "high_hr",
+    "core_ml_confidence": 0.95,
+    "timestamp": "2026-05-06T08:42:00Z"
+  }
+}

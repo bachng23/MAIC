@@ -1,0 +1,7 @@
+{
+  "log_id": "log-123",
+  "start": "2026-05-06T08:00:00Z",
+  "end": "2026-05-06T10:00:00Z",
+  "medication_name": "Panadol",
+  "medication_category": "analgesic"
+}

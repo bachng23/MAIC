@@ -1,0 +1,11 @@
+{
+  "medication_log_id": "log-123",
+  "snapshot": {
+    "heart_rate": 126.0,
+    "hrv": 21.0,
+    "spo2": 95.0,
+    "timestamp": "2026-05-06T08:42:00Z",
+    "activity_state": "resting",
+    "source": "watch"
+  }
+}

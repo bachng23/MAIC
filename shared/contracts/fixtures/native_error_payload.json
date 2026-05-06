@@ -1,0 +1,6 @@
+{
+  "code": "health_permissions_error",
+  "message": "HealthKit permission request failed",
+  "details": "authorizationDenied",
+  "timestamp": "2026-05-06T08:00:00Z"
+}
