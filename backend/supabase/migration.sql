@@ -41,7 +41,7 @@ create table public.medications (
   user_id           uuid not null references public.users(id) on delete cascade,
   name              text not null,
   name_zh           text,
-  dosage            text not null,
+  dosage            text,
   drug_info         jsonb,           -- {main_effects, side_effects, warnings, elderly_notes, interactions, source}
   source_image_url  text,
   is_active         boolean not null default true,
