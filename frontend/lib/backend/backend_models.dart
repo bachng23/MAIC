@@ -76,6 +76,46 @@ class BackendMedication {
   }
 }
 
+class BackendDrugInfo {
+  const BackendDrugInfo({
+    required this.mainEffects,
+    required this.sideEffects,
+    required this.warnings,
+    required this.elderlyNotes,
+    required this.interactions,
+    required this.source,
+  });
+
+  final String mainEffects;
+  final List<String> sideEffects;
+  final List<String> warnings;
+  final String? elderlyNotes;
+  final List<String> interactions;
+  final String source;
+
+  factory BackendDrugInfo.fromJson(Map<String, dynamic> json) {
+    return BackendDrugInfo(
+      mainEffects: (json['main_effects'] as String?) ?? '',
+      sideEffects: ((json['side_effects'] as List<dynamic>?) ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      warnings: ((json['warnings'] as List<dynamic>?) ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      elderlyNotes: json['elderly_notes'] as String?,
+      interactions: ((json['interactions'] as List<dynamic>?) ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      source: (json['source'] as String?) ?? 'Unknown',
+    );
+  }
+
+  @override
+  String toString() {
+    return 'source: $source\nmainEffects: $mainEffects\nelderlyNotes: ${elderlyNotes ?? '-'}\nwarnings: ${warnings.join(', ')}\nsideEffects: ${sideEffects.join(', ')}\ninteractions: ${interactions.join(', ')}';
+  }
+}
+
 class LoginResponse {
   const LoginResponse({
     required this.accessToken,

@@ -181,6 +181,37 @@ class _NativeBridgeDemoPageState extends State<NativeBridgeDemoPage> {
         'name': medication.name,
         'name_zh': medication.nameZh,
         'dosage': medication.dosage,
+        'drug_info_lookup': 'Optional. Call Fetch Drug Info to enrich warnings/interactions.',
+      };
+    });
+  }
+
+  Future<void> _fetchDrugInfo() async {
+    if (!_requireBackendBaseUrl()) {
+      return;
+    }
+
+    final draft = _lastDraft;
+    if (draft == null) {
+      setState(() {
+        _status = 'Fetch drug info failed';
+        _output = 'No medication draft available. Run OCR and parse draft first.';
+      });
+      return;
+    }
+
+    await _run('Fetch drug info', () async {
+      final drugInfo = await _backendApi.fetchDrugInfo(
+        baseUrl: _baseUrlController.text.trim(),
+        accessToken: _accessTokenController.text.trim(),
+        drugName: draft.name,
+        drugNameZh: draft.nameZh,
+      );
+      return {
+        'lookup_status': 'matched_or_partial',
+        'guidance':
+            'Use this to prefill warnings and interactions. If data looks incomplete, let the user edit medication fields manually and continue.',
+        'drug_info': drugInfo.toString(),
       };
     });
   }
@@ -381,6 +412,7 @@ class _NativeBridgeDemoPageState extends State<NativeBridgeDemoPage> {
       PredictAnomalyResponse response =>
         'prediction: ${response.prediction}\n\nbackendReport: ${response.backendReport}',
       Map<Object?, Object?> map => map.toString(),
+      BackendDrugInfo info => info.toString(),
       String text => text,
       _ => value.toString(),
     };
@@ -510,6 +542,10 @@ class _NativeBridgeDemoPageState extends State<NativeBridgeDemoPage> {
               FilledButton(
                 onPressed: _createMedicationFromDraft,
                 child: const Text('Create Medication'),
+              ),
+              FilledButton(
+                onPressed: _fetchDrugInfo,
+                child: const Text('Fetch Drug Info'),
               ),
               FilledButton(
                 onPressed: _createScheduleForLastMedication,

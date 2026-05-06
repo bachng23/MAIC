@@ -66,6 +66,26 @@ class BackendApiClient {
     return BackendMedication.fromJson(data);
   }
 
+  Future<BackendDrugInfo> fetchDrugInfo({
+    required String baseUrl,
+    required String accessToken,
+    required String drugName,
+    String? drugNameZh,
+  }) async {
+    final response = await _sendJsonRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/v1/medications/drug-info'),
+      headers: _headers(accessToken),
+      body: {
+        'drug_name': drugName,
+        'drug_name_zh': drugNameZh,
+      },
+    );
+
+    final data = _unwrapData(response) as Map<String, dynamic>;
+    return BackendDrugInfo.fromJson(data);
+  }
+
   Future<BackendSchedule> createSchedule({
     required String baseUrl,
     required String accessToken,

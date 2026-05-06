@@ -40,8 +40,9 @@ The iOS native bridge should be treated as the source of truth for OCR and Apple
 1. Pick image on device
 2. Call native OCR
 3. Parse OCR text into a draft
-4. Let user review/edit the draft
-5. Call backend `POST /api/v1/medications`
+4. Optionally call backend `POST /api/v1/medications/drug-info`
+5. Let user review/edit the draft
+6. Call backend `POST /api/v1/medications`
 
 ### Flow B: Take dose -> start monitoring -> send anomaly
 
@@ -107,6 +108,46 @@ Request:
   "dosage": "30錠"
 }
 ```
+
+### Fetch drug info
+
+- `POST /api/v1/medications/drug-info`
+
+Authorization:
+
+- `Bearer <access_token>`
+
+Request:
+
+```json
+{
+  "drug_name": "ASPIRIN",
+  "drug_name_zh": "痛み・熱に"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "main_effects": "Used to reduce fever and relieve pain.",
+    "side_effects": ["Nausea and stomach upset."],
+    "warnings": ["May cause stomach bleeding."],
+    "elderly_notes": "Use cautiously in elderly patients with bleeding risk.",
+    "interactions": ["Warfarin may increase bleeding risk."],
+    "source": "OpenFDA / Taiwan FDA"
+  }
+}
+```
+
+Important:
+
+- This endpoint is enrichment, not a required step.
+- Frontend should never block medication creation just because drug info lookup is empty or weak.
+- If lookup succeeds, use the result to prefill warnings, interactions, and elderly notes.
+- If lookup partially succeeds, show the returned info but still allow manual editing.
+- If lookup fails or returns low-confidence data, fall back to manual user entry and continue the flow.
 
 Response:
 
@@ -380,6 +421,20 @@ Important:
 - OCR is iOS-only and Apple-native.
 - The frontend should not expect the Windows developer machine to run Apple Vision locally.
 - The frontend integration should treat OCR as an iOS capability.
+
+### Drug info fallback
+
+- `drug-info` should be treated as optional enrichment.
+- The recommended UX is:
+  1. OCR prefill
+  2. optional drug-info lookup
+  3. user confirm or edit manually
+  4. create medication regardless of lookup outcome
+- Suggested frontend states:
+  - `matched`: good lookup result, prefill info
+  - `partial`: some fields available, still ask user to review
+  - `manual`: lookup failed or missing, user enters details manually
+- The app should prefer graceful degradation over blocking.
 
 ### Health data
 
