@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import get_current_user
 from app.db.client import get_supabase
@@ -18,8 +20,44 @@ from app.models.medication import (
 )
 from app.services.drug_agent import get_drug_info
 from app.services.ocr_service import parse_medication_image
+from app.services.reminder_scheduler import refresh_schedule_jobs
 
 router = APIRouter(prefix="/medications", tags=["medications"])
+
+
+def _get_active_medication_for_user(db, medication_id: str, user_id: str):
+    result = (
+        db.table("medications")
+        .select("id")
+        .eq("id", medication_id)
+        .eq("user_id", user_id)
+        .eq("is_active", True)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def _get_active_schedule_for_user(db, schedule_id: str, user_id: str):
+    result = (
+        db.table("schedules")
+        .select("id")
+        .eq("id", schedule_id)
+        .eq("user_id", user_id)
+        .eq("is_active", True)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def get_medication_log_for_user(db, log_id: str, user_id: str):
+    result = (
+        db.table("medication_logs")
+        .select("id, user_id, schedule_id, status, monitoring_start, monitoring_end")
+        .eq("id", log_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    return result.data[0] if result.data else None
 
 
 @router.post("/scan", response_model=APIResponse[OCRScanResult])
@@ -63,7 +101,15 @@ schedules_router = APIRouter(prefix="/schedules", tags=["schedules"])
 @schedules_router.post("", response_model=APIResponse[ScheduleOut])
 async def create_schedule(body: ScheduleCreate, user: dict = Depends(get_current_user)):
     db = get_supabase()
+    medication = _get_active_medication_for_user(db, body.medication_id, user["id"])
+    if not medication:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medication not found",
+        )
+
     row = db.table("schedules").insert({"user_id": user["id"], **body.model_dump()}).execute()
+    await refresh_schedule_jobs()
     return APIResponse(data=ScheduleOut(**row.data[0]))
 
 
@@ -78,6 +124,7 @@ async def list_schedules(user: dict = Depends(get_current_user)):
 async def delete_schedule(schedule_id: str, user: dict = Depends(get_current_user)):
     db = get_supabase()
     db.table("schedules").update({"is_active": False}).eq("id", schedule_id).eq("user_id", user["id"]).execute()
+    await refresh_schedule_jobs()
     return APIResponse(message="Schedule removed")
 
 
@@ -88,26 +135,47 @@ logs_router = APIRouter(prefix="/logs", tags=["logs"])
 
 @logs_router.post("/taken", response_model=APIResponse[MedicationTakenResponse])
 async def log_taken(body: MedicationTakenRequest, user: dict = Depends(get_current_user)):
-    from datetime import datetime, timedelta, timezone
     db = get_supabase()
+    schedule = _get_active_schedule_for_user(db, body.schedule_id, user["id"])
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Schedule not found",
+        )
+
     now = datetime.now(timezone.utc)
+    monitoring_end = now + timedelta(hours=2)
     row = db.table("medication_logs").insert({
         "user_id": user["id"],
         "schedule_id": body.schedule_id,
         "status": "taken",
+        "scheduled_at": (body.scheduled_at or now).isoformat(),
         "taken_at": now.isoformat(),
         "monitoring_start": now.isoformat(),
-        "monitoring_end": (now + timedelta(hours=2)).isoformat(),
+        "monitoring_end": monitoring_end.isoformat(),
     }).execute()
-    return APIResponse(data=MedicationTakenResponse(log_id=row.data[0]["id"]))
+    return APIResponse(data=MedicationTakenResponse(
+        log_id=row.data[0]["id"],
+        monitoring_start=now,
+        monitoring_end=monitoring_end,
+    ))
 
 
 @logs_router.post("/skipped", response_model=APIResponse[None])
 async def log_skipped(body: MedicationSkippedRequest, user: dict = Depends(get_current_user)):
     db = get_supabase()
+    schedule = _get_active_schedule_for_user(db, body.schedule_id, user["id"])
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Schedule not found",
+        )
+
+    scheduled_at = body.scheduled_at or datetime.now(timezone.utc)
     db.table("medication_logs").insert({
         "user_id": user["id"],
         "schedule_id": body.schedule_id,
         "status": "skipped",
+        "scheduled_at": scheduled_at.isoformat(),
     }).execute()
     return APIResponse(message="Logged as skipped")

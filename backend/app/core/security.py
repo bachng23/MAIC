@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import Client
 
@@ -8,6 +8,7 @@ bearer = HTTPBearer()
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ) -> dict:
     token = credentials.credentials
@@ -17,7 +18,9 @@ async def get_current_user(
         response = supabase.auth.get_user(token)
         if not response.user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-        return {"id": response.user.id, "email": response.user.email}
+        user = {"id": response.user.id, "email": response.user.email}
+        request.state.user = user
+        return user
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

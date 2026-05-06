@@ -17,7 +17,7 @@ IMAGE_PATH = Path(__file__).parent / "fixtures" / "sample_medicine.jpg"
 TEST_USER_ID = "test-user-local"
 
 
-async def test_ocr(image_path: Path) -> None:
+async def run_ocr_test(image_path: Path) -> None:
     if not image_path.exists():
         print(f"Image not found: {image_path}")
         print("Put any medicine image at tests/fixtures/sample_medicine.jpg")
@@ -34,4 +34,4 @@ async def test_ocr(image_path: Path) -> None:
 
 if __name__ == "__main__":
     path = Path(sys.argv[1]) if len(sys.argv) > 1 else IMAGE_PATH
-    asyncio.run(test_ocr(path))
+    asyncio.run(run_ocr_test(path))

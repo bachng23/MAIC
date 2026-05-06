@@ -1,7 +1,10 @@
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(env_file=".env")
+
     supabase_url: str
     supabase_service_key: str
 
@@ -14,10 +17,9 @@ class Settings(BaseSettings):
     apns_use_sandbox: bool = True
 
     app_env: str = "development"
+    scheduler_enabled: bool = True
+    app_timezone: str = "Asia/Taipei"
     secret_key: str
-
-    class Config:
-        env_file = ".env"
 
 
 settings = Settings()
