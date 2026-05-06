@@ -58,7 +58,7 @@ _TOOLS = [
 async def _call_openfda(drug_name: str) -> dict:
     url = "https://api.fda.gov/drug/label.json"
     params = {
-        "search": f'openfda.brand_name:"{drug_name}"+OR+openfda.generic_name:"{drug_name}"',
+        "search": f'openfda.brand_name:"{drug_name}"+openfda.generic_name:"{drug_name}"',
         "limit": 1,
     }
     try:

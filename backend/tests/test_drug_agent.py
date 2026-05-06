@@ -114,7 +114,7 @@ async def test_call_openfda_uses_harmonized_openfda_fields(monkeypatch) -> None:
 
     result = await drug_agent._call_openfda("Aspirin")
 
-    assert captured["params"]["search"] == 'openfda.brand_name:"Aspirin"+OR+openfda.generic_name:"Aspirin"'
+    assert captured["params"]["search"] == 'openfda.brand_name:"Aspirin"+openfda.generic_name:"Aspirin"'
     assert result["warnings"] == "May cause stomach bleeding."
     assert result["geriatric_use"] == "Use cautiously in elderly patients with bleeding risk."
     assert result["interactions"] == "Warfarin may increase bleeding risk."
