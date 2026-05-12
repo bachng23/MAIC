@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/di/providers.dart';
 import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
+import 'med_blue_tokens.dart';
+import 'medication_entry_sheet.dart';
 
 class _UpcomingDose {
   const _UpcomingDose({
@@ -45,6 +47,43 @@ class ScanPage extends ConsumerStatefulWidget {
 class _ScanPageState extends ConsumerState<ScanPage> {
   File? _pickedImage;
   bool _scannerMode = false;
+
+  void _openManualMedicationEntry() {
+    ref.read(scanControllerProvider).clearForNewEntry();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => const MedicationEntrySheet(),
+    );
+  }
+
+  Future<void> _runOcrAndOpenReview() async {
+    if (_pickedImage == null) return;
+    await ref.read(scanControllerProvider).runOcrFromImage(_pickedImage!);
+    if (!mounted) return;
+    final s = ref.read(scanControllerProvider);
+    if (s.error != null || s.scanResult == null) return;
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => MedicationEntrySheet(
+        initialOcr: s.scanResult,
+        initialDrugInfo: s.drugInfo,
+        onSaved: () {
+          if (!mounted) return;
+          setState(() {
+            _scannerMode = false;
+            _pickedImage = null;
+          });
+        },
+      ),
+    );
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
@@ -204,16 +243,15 @@ class _ScanPageState extends ConsumerState<ScanPage> {
               ),
               const SizedBox(height: 8),
               FilledButton(
-                onPressed: scan.isLoading || _pickedImage == null
-                    ? null
-                    : () => ref.read(scanControllerProvider).scanAndCreateMedication(_pickedImage!),
+                onPressed: scan.isLoading || _pickedImage == null ? null : _runOcrAndOpenReview,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(50),
-                  backgroundColor: const Color(0xFF004E9F),
+                  backgroundColor: MedBlueTokens.primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
                 ),
-                child: Text(scan.isLoading ? 'Processing…' : 'Run OCR + Save Medication'),
+                child: Text(scan.isLoading ? 'Scanning…' : 'Run OCR & review'),
               ),
               if (scan.error != null) ...[
                 const SizedBox(height: 8),
@@ -299,12 +337,26 @@ class _ScanPageState extends ConsumerState<ScanPage> {
                       onPressed: () => setState(() => _scannerMode = true),
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF0066CC),
+                        foregroundColor: MedBlueTokens.primary,
                         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                         shape: const StadiumBorder(),
                         textStyle: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       child: const Text('Open Scanner'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _openManualMedicationEntry,
+                      icon: const Icon(Icons.edit_note_outlined, color: Colors.white),
+                      label: const Text(
+                        'Enter medication manually',
+                        style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        side: const BorderSide(color: Colors.white, width: 1.5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
                     ),
                   ],
                 ),
@@ -341,7 +393,7 @@ class _ScanPageState extends ConsumerState<ScanPage> {
               ),
               const SizedBox(height: 16),
               if (doses.isEmpty)
-                const Text('No scheduled doses yet. Add medications and schedules from the dashboard flow.')
+                const Text('No scheduled doses yet. Add a medication with the scanner or manual entry above, then save a schedule.')
               else ...[
                 _GlassDoseCard(
                   dose: doses.first,

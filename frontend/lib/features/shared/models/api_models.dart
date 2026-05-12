@@ -110,7 +110,7 @@ class DrugInfoRequest {
   final String? drugNameZh;
 }
 
-@JsonSerializable()
+@JsonSerializable(explicitToJson: true)
 class DrugInfo {
   DrugInfo({
     required this.mainEffects,
@@ -135,12 +135,13 @@ class DrugInfo {
   final String source;
 }
 
-@JsonSerializable()
+@JsonSerializable(explicitToJson: true)
 class MedicationCreate {
   MedicationCreate({
     required this.name,
     this.nameZh,
     this.dosage,
+    this.notes,
     this.drugInfo,
     this.sourceImageUrl,
   });
@@ -151,13 +152,14 @@ class MedicationCreate {
   @JsonKey(name: 'name_zh')
   final String? nameZh;
   final String? dosage;
+  final String? notes;
   @JsonKey(name: 'drug_info')
   final DrugInfo? drugInfo;
   @JsonKey(name: 'source_image_url')
   final String? sourceImageUrl;
 }
 
-@JsonSerializable()
+@JsonSerializable(explicitToJson: true)
 class MedicationOut {
   MedicationOut({
     required this.id,
@@ -165,6 +167,7 @@ class MedicationOut {
     required this.name,
     this.nameZh,
     this.dosage,
+    this.notes,
     this.drugInfo,
     this.sourceImageUrl,
     required this.isActive,
@@ -179,6 +182,7 @@ class MedicationOut {
   @JsonKey(name: 'name_zh')
   final String? nameZh;
   final String? dosage;
+  final String? notes;
   @JsonKey(name: 'drug_info')
   final DrugInfo? drugInfo;
   @JsonKey(name: 'source_image_url')

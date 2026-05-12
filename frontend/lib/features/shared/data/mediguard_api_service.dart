@@ -87,51 +87,83 @@ class MediGuardApiService {
   }
 
   Future<OCRScanResult> scanMedication(OCRScanRequest payload) async {
-    final token = await getToken();
-    if (token == null) throw Exception('Please log in first.');
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/api/v1/medications/scan',
-      data: payload.toJson(),
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
-    final parsed = ApiResponse<OCRScanResult>.fromJson(
-      response.data!,
-      (json) => OCRScanResult.fromJson(Map<String, dynamic>.from(json! as Map)),
-    );
-    if (parsed.data == null) throw Exception(parsed.message ?? 'Scan failed.');
-    return parsed.data!;
+    try {
+      final token = await getToken();
+      if (token == null) throw Exception('Please log in first.');
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/medications/scan',
+        data: payload.toJson(),
+        options: Options(headers: {'Authorization': 'Bearer $token'}, contentType: 'application/json'),
+      );
+      final parsed = ApiResponse<OCRScanResult>.fromJson(
+        response.data!,
+        (json) => OCRScanResult.fromJson(Map<String, dynamic>.from(json! as Map)),
+      );
+      if (parsed.data == null) throw Exception(parsed.message ?? 'Scan failed.');
+      return parsed.data!;
+    } on DioException catch (e) {
+      throw Exception(_dioFailureMessage(e));
+    }
   }
 
   Future<DrugInfo> fetchDrugInfo(DrugInfoRequest payload) async {
-    final token = await getToken();
-    if (token == null) throw Exception('Please log in first.');
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/api/v1/medications/drug-info',
-      data: payload.toJson(),
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
-    final parsed = ApiResponse<DrugInfo>.fromJson(
-      response.data!,
-      (json) => DrugInfo.fromJson(Map<String, dynamic>.from(json! as Map)),
-    );
-    if (parsed.data == null) throw Exception(parsed.message ?? 'Drug info request failed.');
-    return parsed.data!;
+    try {
+      final token = await getToken();
+      if (token == null) throw Exception('Please log in first.');
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/medications/drug-info',
+        data: payload.toJson(),
+        options: Options(headers: {'Authorization': 'Bearer $token'}, contentType: 'application/json'),
+      );
+      final parsed = ApiResponse<DrugInfo>.fromJson(
+        response.data!,
+        (json) => DrugInfo.fromJson(Map<String, dynamic>.from(json! as Map)),
+      );
+      if (parsed.data == null) throw Exception(parsed.message ?? 'Drug info request failed.');
+      return parsed.data!;
+    } on DioException catch (e) {
+      throw Exception(_dioFailureMessage(e));
+    }
   }
 
   Future<MedicationOut> createMedication(MedicationCreate payload) async {
-    final token = await getToken();
-    if (token == null) throw Exception('Please log in first.');
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/api/v1/medications',
-      data: payload.toJson(),
-      options: Options(headers: {'Authorization': 'Bearer $token'}),
-    );
-    final parsed = ApiResponse<MedicationOut>.fromJson(
-      response.data!,
-      (json) => MedicationOut.fromJson(Map<String, dynamic>.from(json! as Map)),
-    );
-    if (parsed.data == null) throw Exception(parsed.message ?? 'Create medication failed.');
-    return parsed.data!;
+    try {
+      final token = await getToken();
+      if (token == null) throw Exception('Please log in first.');
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/medications',
+        data: payload.toJson(),
+        options: Options(headers: {'Authorization': 'Bearer $token'}, contentType: 'application/json'),
+      );
+      final parsed = ApiResponse<MedicationOut>.fromJson(
+        response.data!,
+        (json) => MedicationOut.fromJson(Map<String, dynamic>.from(json! as Map)),
+      );
+      if (parsed.data == null) throw Exception(parsed.message ?? 'Create medication failed.');
+      return parsed.data!;
+    } on DioException catch (e) {
+      throw Exception(_dioFailureMessage(e));
+    }
+  }
+
+  Future<ScheduleOut> createSchedule(ScheduleCreate payload) async {
+    try {
+      final token = await getToken();
+      if (token == null) throw Exception('Please log in first.');
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/schedules',
+        data: payload.toJson(),
+        options: Options(headers: {'Authorization': 'Bearer $token'}, contentType: 'application/json'),
+      );
+      final parsed = ApiResponse<ScheduleOut>.fromJson(
+        response.data!,
+        (json) => ScheduleOut.fromJson(Map<String, dynamic>.from(json! as Map)),
+      );
+      if (parsed.data == null) throw Exception(parsed.message ?? 'Create schedule failed.');
+      return parsed.data!;
+    } on DioException catch (e) {
+      throw Exception(_dioFailureMessage(e));
+    }
   }
 
   Future<MedicationTakenResponse> logMedicationTaken(MedicationTakenRequest payload) async {

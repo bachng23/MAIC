@@ -59,7 +59,14 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               const SizedBox(height: 12),
               _fieldLabel('Phone'),
               TextField(controller: _phone, decoration: _inputDecoration('0912345678')),
-              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => context.push('/phone'),
+                  child: const Text('Verify with SMS instead', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const SizedBox(height: 4),
               _fieldLabel('Password'),
               TextField(
                 controller: _password,

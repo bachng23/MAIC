@@ -27,6 +27,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
+    if (widget.isWelcome) {
+      return _buildWelcomeScaffold(context);
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
       body: Center(
@@ -43,10 +46,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Color(0xFF004E9F)),
               ),
               const SizedBox(height: 4),
-              Text(
-                widget.isWelcome ? 'Stay safe with every dose' : 'Welcome back',
+              const Text(
+                'Welcome back',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, color: Color(0xFF4C616C), fontWeight: FontWeight.w500),
+                style: TextStyle(fontSize: 18, color: Color(0xFF4C616C), fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 24),
               Container(
@@ -58,19 +61,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ],
                 ),
                 padding: const EdgeInsets.all(22),
-                child: widget.isWelcome ? _buildWelcomeActions(context) : _buildLoginForm(context, auth),
+                child: _buildLoginForm(context, auth),
               ),
               const SizedBox(height: 16),
-              if (!widget.isWelcome)
-                TextButton(
-                  onPressed: () => context.go('/register'),
-                  child: const Column(
-                    children: [
-                      Text('Don\'t have an account?', style: TextStyle(color: Color(0xFF4C616C))),
-                      Text('Create Account', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF004E9F))),
-                    ],
-                  ),
+              TextButton(
+                onPressed: () => context.go('/register'),
+                child: const Column(
+                  children: [
+                    Text('Don\'t have an account?', style: TextStyle(color: Color(0xFF4C616C))),
+                    Text('Create Account', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF004E9F))),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
@@ -78,28 +80,168 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 
-  Widget _buildWelcomeActions(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text('Welcome', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 14),
-        FilledButton(
-          onPressed: () => context.go('/login'),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(56),
-            backgroundColor: const Color(0xFF0066CC),
-            foregroundColor: Colors.white,
+  Widget _buildWelcomeScaffold(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F9FC),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.center,
+                  colors: [
+                    const Color(0xFFF2F4F7),
+                    const Color(0xFFF7F9FC),
+                  ],
+                ),
+              ),
+            ),
           ),
-          child: const Text('Get Started', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton(
-          onPressed: () => context.go('/register'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-          child: const Text('Create Account', style: TextStyle(fontWeight: FontWeight.w700)),
-        ),
-      ],
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.health_and_safety_rounded, color: Color(0xFF004E9F), size: 32),
+                        SizedBox(width: 10),
+                        Text(
+                          'MediAgent',
+                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF004E9F)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Empathetic Guardian',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF4C616C), letterSpacing: 0.3),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                        child: Column(
+                          children: [
+                            Container(
+                              height: 220,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(28),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFF0066CC).withValues(alpha: 0.12),
+                                    const Color(0xFF004E9F).withValues(alpha: 0.22),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(color: Color(0x14191C1E), blurRadius: 28, offset: Offset(0, 12)),
+                                ],
+                              ),
+                              child: Stack(
+                                children: [
+                                  Positioned(
+                                    right: 20,
+                                    top: 24,
+                                    child: Icon(Icons.medication_liquid_rounded, size: 72, color: Colors.white.withValues(alpha: 0.35)),
+                                  ),
+                                  Positioned(
+                                    left: 18,
+                                    bottom: 18,
+                                    right: 18,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.92),
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: const Border(left: BorderSide(color: Color(0xFF0066CC), width: 4)),
+                                      ),
+                                      child: const Row(
+                                        children: [
+                                          Icon(Icons.verified_user_rounded, color: Color(0xFF0066CC), size: 28),
+                                          SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              'Guided care for every dose — reminders, scans, and safety checks in one place.',
+                                              style: TextStyle(fontSize: 14, height: 1.35, fontWeight: FontWeight.w600, color: Color(0xFF414753)),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            const Text(
+                              'Stay safe with every dose',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, height: 1.15, color: Color(0xFF004E9F)),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Track medications, monitor vitals, and keep loved ones in the loop — with privacy built in.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 16, color: Color(0xFF4C616C), height: 1.45),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: () => context.go('/login'),
+                            icon: const Icon(Icons.arrow_forward_rounded),
+                            label: const Text('Get Started', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(56),
+                              backgroundColor: const Color(0xFF0066CC),
+                              foregroundColor: Colors.white,
+                              shape: const StadiumBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton(
+                            onPressed: () => context.go('/register'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(52),
+                              side: const BorderSide(color: Color(0xFF0066CC)),
+                              foregroundColor: const Color(0xFF0066CC),
+                              shape: const StadiumBorder(),
+                            ),
+                            child: const Text('Create Account', style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () => context.go('/login'),
+                            child: const Text('I already have an account', style: TextStyle(fontWeight: FontWeight.w600)),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Privacy first: your health data stays encrypted and under your control.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: Color(0xFF6B7C86), height: 1.35),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -144,6 +144,7 @@ MedicationCreate _$MedicationCreateFromJson(Map<String, dynamic> json) =>
       name: json['name'] as String,
       nameZh: json['name_zh'] as String?,
       dosage: json['dosage'] as String?,
+      notes: json['notes'] as String?,
       drugInfo: json['drug_info'] == null
           ? null
           : DrugInfo.fromJson(json['drug_info'] as Map<String, dynamic>),
@@ -155,7 +156,8 @@ Map<String, dynamic> _$MedicationCreateToJson(MedicationCreate instance) =>
       'name': instance.name,
       'name_zh': instance.nameZh,
       'dosage': instance.dosage,
-      'drug_info': instance.drugInfo,
+      'notes': instance.notes,
+      'drug_info': instance.drugInfo?.toJson(),
       'source_image_url': instance.sourceImageUrl,
     };
 
@@ -166,6 +168,7 @@ MedicationOut _$MedicationOutFromJson(Map<String, dynamic> json) =>
       name: json['name'] as String,
       nameZh: json['name_zh'] as String?,
       dosage: json['dosage'] as String?,
+      notes: json['notes'] as String?,
       drugInfo: json['drug_info'] == null
           ? null
           : DrugInfo.fromJson(json['drug_info'] as Map<String, dynamic>),
@@ -180,7 +183,8 @@ Map<String, dynamic> _$MedicationOutToJson(MedicationOut instance) =>
       'name': instance.name,
       'name_zh': instance.nameZh,
       'dosage': instance.dosage,
-      'drug_info': instance.drugInfo,
+      'notes': instance.notes,
+      'drug_info': instance.drugInfo?.toJson(),
       'source_image_url': instance.sourceImageUrl,
       'is_active': instance.isActive,
     };
