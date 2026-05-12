@@ -4,6 +4,15 @@ import '../../../core/storage/token_storage.dart';
 import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
 
+String _userFacingError(Object e) {
+  final s = e.toString();
+  const prefix = 'Exception: ';
+  if (s.startsWith(prefix)) {
+    return s.substring(prefix.length);
+  }
+  return s;
+}
+
 class AuthController extends ChangeNotifier {
   AuthController(this._api, this._tokenStorage);
 
@@ -31,7 +40,7 @@ class AuthController extends ChangeNotifier {
       isAuthenticated = true;
       return true;
     } catch (e) {
-      error = e.toString();
+      error = _userFacingError(e);
       return false;
     } finally {
       isLoading = false;
@@ -57,7 +66,7 @@ class AuthController extends ChangeNotifier {
       ));
       return await login(email, password);
     } catch (e) {
-      error = e.toString();
+      error = _userFacingError(e);
       return false;
     } finally {
       isLoading = false;

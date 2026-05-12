@@ -3,6 +3,48 @@ import 'package:dio/dio.dart';
 import '../../../core/storage/token_storage.dart';
 import '../models/api_models.dart';
 
+String _dioFailureMessage(DioException e) {
+  final status = e.response?.statusCode;
+  final raw = e.response?.data;
+  if (raw is Map) {
+    final detail = raw['detail'];
+    if (detail is String && detail.isNotEmpty) {
+      return detail;
+    }
+    if (detail is List && detail.isNotEmpty) {
+      final first = detail.first;
+      if (first is Map) {
+        final msg = first['msg'];
+        if (msg is String && msg.isNotEmpty) return msg;
+      }
+    }
+    final message = raw['message'];
+    if (message is String && message.isNotEmpty) return message;
+  }
+  switch (e.type) {
+    case DioExceptionType.connectionTimeout:
+    case DioExceptionType.sendTimeout:
+    case DioExceptionType.receiveTimeout:
+      return 'Request timed out. Check your connection and try again.';
+    case DioExceptionType.connectionError:
+      return 'Could not reach the server. Check your connection and try again.';
+    default:
+      break;
+  }
+  if (status == 401) {
+    return 'Invalid email or password.';
+  }
+  if (status != null) {
+    return 'Request failed (HTTP $status).';
+  }
+  return e.message?.isNotEmpty == true ? e.message! : 'Something went wrong. Please try again.';
+}
+
+Options get _jsonOptions => Options(
+      contentType: 'application/json',
+      headers: const {'Accept': 'application/json'},
+    );
+
 class MediGuardApiService {
   MediGuardApiService(this._dio, this._tokenStorage);
 
@@ -14,18 +56,34 @@ class MediGuardApiService {
   Future<void> clearToken() => _tokenStorage.clearToken();
 
   Future<Map<String, dynamic>> login(UserLogin payload) async {
-    final response = await _dio.post<Map<String, dynamic>>('/api/v1/auth/login', data: payload.toJson());
-    final parsed = ApiResponse<Map<String, dynamic>>.fromJson(response.data!, (json) {
-      return Map<String, dynamic>.from(json! as Map);
-    });
-    if (parsed.data == null || parsed.data!['access_token'] == null) {
-      throw Exception(parsed.message ?? 'Login failed.');
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/auth/login',
+        data: payload.toJson(),
+        options: _jsonOptions,
+      );
+      final parsed = ApiResponse<Map<String, dynamic>>.fromJson(response.data!, (json) {
+        return Map<String, dynamic>.from(json! as Map);
+      });
+      if (parsed.data == null || parsed.data!['access_token'] == null) {
+        throw Exception(parsed.message ?? 'Login failed.');
+      }
+      return parsed.data!;
+    } on DioException catch (e) {
+      throw Exception(_dioFailureMessage(e));
     }
-    return parsed.data!;
   }
 
   Future<void> register(UserRegister payload) async {
-    await _dio.post<Map<String, dynamic>>('/api/v1/auth/register', data: payload.toJson());
+    try {
+      await _dio.post<Map<String, dynamic>>(
+        '/api/v1/auth/register',
+        data: payload.toJson(),
+        options: _jsonOptions,
+      );
+    } on DioException catch (e) {
+      throw Exception(_dioFailureMessage(e));
+    }
   }
 
   Future<OCRScanResult> scanMedication(OCRScanRequest payload) async {
