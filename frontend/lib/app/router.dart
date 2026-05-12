@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/di/providers.dart';
+import 'navigation_shell_scaffold.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/auth/presentation/register_page.dart';
 import '../features/dashboard/presentation/home_page.dart';
@@ -17,7 +18,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: auth,
     redirect: (context, state) {
       final isAuth = auth.isAuthenticated;
-      final loc = state.fullPath ?? '/welcome';
+      final loc = state.matchedLocation;
       final authRoutes = {'/welcome', '/login', '/register'};
       if (!isAuth && !authRoutes.contains(loc)) return '/login';
       if (isAuth && authRoutes.contains(loc)) return '/home';
@@ -36,25 +37,52 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/register',
         builder: (context, state) => const RegisterPage(),
       ),
-      GoRoute(
-        path: '/home',
-        builder: (context, state) => const HomePage(),
-      ),
-      GoRoute(
-        path: '/profile',
-        builder: (context, state) => const ProfilePage(),
-      ),
-      GoRoute(
-        path: '/scan',
-        builder: (context, state) => const ScanPage(),
-      ),
-      GoRoute(
-        path: '/health',
-        builder: (context, state) => const HealthPage(),
-      ),
-      GoRoute(
-        path: '/compliance',
-        builder: (context, state) => const CompliancePage(),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return NavigationShellScaffold(navigationShell: navigationShell);
+        },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/home',
+                builder: (context, state) => const HomePage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/scan',
+                builder: (context, state) => const ScanPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/health',
+                builder: (context, state) => const HealthPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/compliance',
+                builder: (context, state) => const CompliancePage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) => const ProfilePage(),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );
