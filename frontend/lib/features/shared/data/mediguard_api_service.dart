@@ -134,6 +134,29 @@ class MediGuardApiService {
     return parsed.data!;
   }
 
+  Future<MedicationTakenResponse> logMedicationTaken(MedicationTakenRequest payload) async {
+    try {
+      final token = await getToken();
+      if (token == null) throw Exception('Please log in first.');
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/logs/taken',
+        data: payload.toJson(),
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          contentType: 'application/json',
+        ),
+      );
+      final parsed = ApiResponse<MedicationTakenResponse>.fromJson(
+        response.data!,
+        (json) => MedicationTakenResponse.fromJson(Map<String, dynamic>.from(json! as Map)),
+      );
+      if (parsed.data == null) throw Exception(parsed.message ?? 'Could not log dose.');
+      return parsed.data!;
+    } on DioException catch (e) {
+      throw Exception(_dioFailureMessage(e));
+    }
+  }
+
   Future<HealthStatus> getHealthStatus(String logId) async {
     final token = await getToken();
     if (token == null) throw Exception('Please log in first.');

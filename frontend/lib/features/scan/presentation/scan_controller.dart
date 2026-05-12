@@ -51,4 +51,23 @@ class ScanController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> logDoseTaken(String scheduleId) async {
+    if (scheduleId.isEmpty) {
+      error = 'Missing schedule.';
+      notifyListeners();
+      return;
+    }
+    isLoading = true;
+    error = null;
+    notifyListeners();
+    try {
+      await _api.logMedicationTaken(MedicationTakenRequest(scheduleId: scheduleId));
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
 }
