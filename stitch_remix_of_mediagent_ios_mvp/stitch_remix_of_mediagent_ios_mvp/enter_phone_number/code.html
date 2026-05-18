@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MediAgent - Phone Verification</title>
+<!-- Lexend is the primary font as per the Design System -->
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-container": "#cfe6f2",
+                        "on-primary-fixed": "#001b3e",
+                        "on-tertiary-container": "#ffe6b7",
+                        "on-secondary-fixed-variant": "#354a53",
+                        "surface-container-low": "#f2f4f7",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#684c00",
+                        "outline-variant": "#c1c6d5",
+                        "inverse-primary": "#aac7ff",
+                        "surface-variant": "#e0e3e6",
+                        "primary-fixed": "#d7e3ff",
+                        "inverse-surface": "#2d3133",
+                        "surface-tint": "#005cba",
+                        "on-primary": "#ffffff",
+                        "primary-container": "#0066cc",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed": "#ffdfa0",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed": "#261a00",
+                        "on-error-container": "#93000a",
+                        "surface-dim": "#d8dadd",
+                        "on-tertiary-fixed-variant": "#5c4300",
+                        "primary": "#004e9f",
+                        "on-primary-container": "#dfe8ff",
+                        "surface": "#f7f9fc",
+                        "on-primary-fixed-variant": "#00458e",
+                        "tertiary-fixed-dim": "#f8bd2a",
+                        "surface-container-high": "#e6e8eb",
+                        "outline": "#727784",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#866300",
+                        "on-background": "#191c1e",
+                        "background": "#f7f9fc",
+                        "secondary-fixed": "#cfe6f2",
+                        "on-surface-variant": "#414753",
+                        "on-surface": "#191c1e",
+                        "on-secondary-container": "#526772",
+                        "error-container": "#ffdad6",
+                        "inverse-on-surface": "#eff1f4",
+                        "surface-container-highest": "#e0e3e6",
+                        "surface-bright": "#f7f9fc",
+                        "secondary-fixed-dim": "#b4cad6",
+                        "primary-fixed-dim": "#aac7ff",
+                        "on-secondary-fixed": "#071e27",
+                        "surface-container": "#eceef1",
+                        "secondary": "#4c616c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Lexend"],
+                        "body": ["Lexend"],
+                        "label": ["Lexend"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Lexend', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col items-center overflow-x-hidden">
+<!-- TopAppBar - Mapped from JSON -->
+<header class="fixed top-0 w-full z-50 backdrop-blur-xl bg-[#f7f9fc] dark:bg-slate-950/80 flex items-center justify-between px-6 h-16 w-full">
+<div class="flex items-center gap-4">
+<button class="active:scale-95 transition-transform duration-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2 rounded-full">
+<span class="material-symbols-outlined text-[#004e9f] dark:text-blue-400">arrow_back</span>
+</button>
+<h1 class="font-lexend text-xl font-semibold tracking-tight text-[#004e9f] dark:text-blue-400">Verification</h1>
+</div>
+<div class="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container text-on-surface-variant">
+<span class="material-symbols-outlined">more_vert</span>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 w-full max-w-md px-8 pt-24 pb-12 flex flex-col">
+<!-- Hero Illustration Area (Asymmetric Editorial Layout) -->
+<div class="relative w-full aspect-square mb-10 overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-primary/5 to-primary-container/10">
+<div class="absolute inset-0 flex items-center justify-center">
+<img class="w-full h-full object-cover opacity-80 mix-blend-overlay" data-alt="Modern high-tech medical device interface displaying health data in a clean minimalist laboratory setting with soft blue lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCx4LHIpzdSfKAxSBK7yycNiWBUI15cUSXb_Exc6QLFJoP_t8JymkxvVKZARMq6LnbZMn6r12bYFn36ciHrHgSVRVxMNh_S88XVN7zilOMRxnKkrj1IChgWyoSOqNk_PQtI0T-di6YTnK8dmBhyehXnc5EmedQJiEf0MDn4lmjlfEu-lqOja4Xpcw7XRs-12SU9RJjbwD0NvQaFJwzAm7mr6A_evMhrtmiN1h1e7a1_W-hIiijuXGp3AVm4zxiHd7YXAx0A3aUTTZEh"/>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent"></div>
+<div class="absolute bottom-6 left-6 p-6 bg-surface-container-lowest/90 backdrop-blur-md rounded-2xl shadow-sm border-l-4 border-primary">
+<span class="material-symbols-outlined text-primary text-3xl mb-2" style="font-variation-settings: 'FILL' 1;">shield</span>
+<p class="text-on-surface-variant font-medium leading-tight">Patient Safety First</p>
+</div>
+</div>
+<!-- Typography Cluster -->
+<section class="mb-10">
+<h2 class="text-4xl font-extrabold text-on-surface tracking-tight mb-3 leading-tight">
+                Secure your account
+            </h2>
+<p class="text-lg text-secondary leading-relaxed">
+                We'll send a verification code to your mobile number.
+            </p>
+</section>
+<!-- Input Section -->
+<section class="space-y-6">
+<div class="space-y-2">
+<label class="text-sm font-semibold tracking-wider text-secondary uppercase px-1">Mobile Number</label>
+<div class="flex items-stretch gap-3 h-16">
+<!-- Country Code Picker -->
+<div class="flex items-center gap-2 bg-surface-container-low hover:bg-surface-container transition-colors rounded-2xl px-4 cursor-pointer active:scale-95 duration-200">
+<img alt="USA Flag" class="w-6 h-4 rounded-sm object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBA6GmEin3HKPpfRjvye1MmKLf8CmZ4Qls0gdjMcLkFCTPzfWlr7qPhmU-vD-JvMadtA5oc2HNewRlrYQU9vl3RtuKRiKHTj_uGDdDGEy1z_Vk-aERxRNyVJ3C3pyfApvQ0D4VGZ4SnXit9kRvqYrG1umehW0bXl7qp_rMWOGPVPOwy2j1exoQXHEfPaA0oZQAcdkOqAJdH2iDUHGfdURQuiSPH50VD0-CZBOV4EfWAYrzYsxg-h-7cmZvoZONt_OwrhCbvf7PO0OWF"/>
+<span class="font-bold text-on-surface">+1</span>
+<span class="material-symbols-outlined text-outline text-sm">expand_more</span>
+</div>
+<!-- Phone Input -->
+<div class="flex-1 group relative">
+<input class="w-full h-full bg-surface-container-low border-0 rounded-2xl px-6 text-xl font-medium text-on-surface focus:ring-2 focus:ring-primary focus:bg-white transition-all placeholder:text-outline-variant" placeholder="(555) 000-0000" type="tel"/>
+</div>
+</div>
+</div>
+<!-- Trust Message -->
+<div class="flex items-start gap-3 p-4 bg-secondary-container/20 rounded-2xl">
+<span class="material-symbols-outlined text-primary mt-0.5">lock</span>
+<p class="text-sm text-on-secondary-container leading-relaxed">
+                    Your privacy is our priority. We only use this to secure your health data and will never share your number with third parties.
+                </p>
+</div>
+<!-- Primary CTA -->
+<div class="pt-4">
+<button class="w-full h-16 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-full font-bold text-lg shadow-xl shadow-primary/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-3">
+                    Send Code
+                    <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</section>
+<!-- Secondary Information / Help -->
+<footer class="mt-auto pt-12 text-center">
+<p class="text-on-surface-variant text-sm mb-2">Need help setting up?</p>
+<button class="text-primary font-bold text-sm hover:underline">Contact Support</button>
+<!-- Progress Indicator -->
+<div class="flex justify-center gap-2 mt-8">
+<div class="w-8 h-1.5 rounded-full bg-primary"></div>
+<div class="w-2 h-1.5 rounded-full bg-surface-container-highest"></div>
+<div class="w-2 h-1.5 rounded-full bg-surface-container-highest"></div>
+</div>
+</footer>
+</main>
+<!-- Navigation suppression: Not top-level destination (part of onboarding linear flow) -->
+<!-- As per "The Destination Rule" and "Automatic Suppression", Top-level Shell is excluded -->
+</body></html>

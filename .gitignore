@@ -26,13 +26,9 @@ backend/scripts/**/__pycache__/
 backend/tests/**/__pycache__/
 backend/tests/fixtures/
 
-# Keep the demo frontend focused on iOS handoff only
-frontend/.metadata
-frontend/README.md
+# iOS-primary handoff: omit non-iOS Flutter platform folders (regenerate with `flutter create` if needed).
 frontend/android/
-frontend/ios/RunnerTests/
 frontend/linux/
 frontend/macos/
-frontend/test/
 frontend/web/
 frontend/windows/
