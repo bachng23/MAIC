@@ -6,7 +6,9 @@ import '../../features/auth/presentation/auth_controller.dart';
 import '../../features/health/presentation/health_controller.dart';
 import '../../features/scan/presentation/scan_controller.dart';
 import '../../features/shared/data/mediguard_api_service.dart';
+import '../../features/profile/presentation/profile_controller.dart';
 import '../network/auth_interceptor.dart';
+import '../storage/profile_storage.dart';
 import '../storage/token_storage.dart';
 
 const _defaultBaseUrl = 'https://maic-production-3798.up.railway.app';
@@ -19,6 +21,7 @@ void invalidateUserScopedProviders(Ref ref) {
   ref.invalidate(dashboardControllerProvider);
   ref.read(scanControllerProvider).clearForNewEntry();
   ref.read(healthControllerProvider).reset();
+  ref.read(profileControllerProvider).reset();
 }
 
 final dioProvider = Provider<Dio>((ref) {
@@ -74,6 +77,22 @@ final scanControllerProvider = ChangeNotifierProvider<ScanController>((ref) {
 
 final healthControllerProvider = ChangeNotifierProvider<HealthController>((ref) {
   return HealthController(ref.watch(apiServiceProvider));
+});
+
+final profileStorageProvider = Provider<ProfileStorage>((ref) {
+  return ProfileStorage(ref.watch(secureStorageProvider));
+});
+
+final profileControllerProvider = ChangeNotifierProvider<ProfileController>((ref) {
+  final controller = ProfileController(
+    ref.watch(profileStorageProvider),
+    ref.watch(tokenStorageProvider),
+  );
+  ref.listen<int>(authSessionIdProvider, (previous, next) {
+    if (previous != next) controller.bootstrap();
+  });
+  controller.bootstrap();
+  return controller;
 });
 
 final backendHealthProvider = FutureProvider<Map<String, dynamic>>((ref) async {

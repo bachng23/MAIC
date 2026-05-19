@@ -10,6 +10,7 @@ import '../features/auth/presentation/verify_phone_page.dart';
 import '../features/dashboard/presentation/home_page.dart';
 import '../features/health/presentation/health_page.dart';
 import '../features/profile/presentation/profile_page.dart';
+import '../features/profile/presentation/edit_profile_page.dart';
 import '../features/profile/presentation/settings_page.dart';
 import '../features/scan/presentation/scan_page.dart';
 import '../features/compliance/presentation/compliance_page.dart';
@@ -106,6 +107,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'settings',
                     builder: (context, state) => const SettingsPage(),
+                  ),
+                  GoRoute(
+                    path: 'edit',
+                    builder: (context, state) => const EditProfilePage(),
                   ),
                 ],
               ),

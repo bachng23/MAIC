@@ -22,6 +22,8 @@ class ProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dash = ref.watch(dashboardControllerProvider);
+    final userProfile = ref.watch(profileControllerProvider).profile;
+    final displayName = userProfile.name.trim().isEmpty ? 'MediAgent User' : userProfile.name.trim();
     final bottomPad = MediaQuery.paddingOf(context).bottom + 88;
 
     return Scaffold(
@@ -66,16 +68,27 @@ class ProfilePage extends ConsumerWidget {
                       child: Icon(Icons.person, size: 56, color: Color(0xFF004E9F)),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'MediAgent User',
+                    Text(
+                      displayName,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF004E9F)),
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF004E9F)),
                     ),
                     const Text(
                       'Your care profile',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 16, color: Color(0xFF4C616C), fontWeight: FontWeight.w500),
                     ),
+                    if (userProfile.age != null || userProfile.address.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        [
+                          if (userProfile.age != null) 'Age ${userProfile.age}',
+                          if (userProfile.address.trim().isNotEmpty) userProfile.address.trim(),
+                        ].join(' · '),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 14, color: Color(0xFF4C616C)),
+                      ),
+                    ],
                     const SizedBox(height: 28),
                     _SectionCard(
                       title: 'Emergency Contacts',
@@ -122,21 +135,21 @@ class ProfilePage extends ConsumerWidget {
                             icon: Icons.bloodtype,
                             iconBg: const Color(0xFFD7E3FF),
                             label: 'Blood Type',
-                            value: '—',
+                            value: userProfile.displayOrDash(userProfile.bloodType),
                           ),
                           _HealthTile(
                             icon: Icons.coronavirus_outlined,
                             iconBg: const Color(0xFFFFDAD6),
                             iconColor: const Color(0xFFBA1A1A),
                             label: 'Allergies',
-                            value: '—',
+                            value: userProfile.displayOrDash(userProfile.allergies),
                           ),
                           _HealthTile(
                             icon: Icons.monitor_heart_outlined,
                             iconBg: const Color(0xFFFFDFA0),
                             iconColor: const Color(0xFF684C00),
                             label: 'Conditions',
-                            value: '—',
+                            value: userProfile.displayOrDash(userProfile.medicalConditions),
                           ),
                         ];
                         if (wide) {
@@ -158,6 +171,22 @@ class ProfilePage extends ConsumerWidget {
                       },
                     ),
                     const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => context.push('/profile/edit'),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: Text(userProfile.hasAnyData ? 'Edit Profile' : 'Add Profile Info'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          backgroundColor: const Color(0xFF0066CC),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     Center(
                       child: TextButton.icon(
                         onPressed: () async {
