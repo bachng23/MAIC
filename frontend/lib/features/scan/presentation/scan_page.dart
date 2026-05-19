@@ -408,7 +408,22 @@ class _ScanPageState extends ConsumerState<ScanPage> {
                 ),
                 if (doses.length > 1) ...[
                   const SizedBox(height: 14),
-                  _SecondaryDoseCard(dose: doses[1]),
+                  _SecondaryDoseCard(
+                    dose: doses[1],
+                    onRemindMe: () async {
+                      await ref.read(medicationNotificationServiceProvider).scheduleOneOffReminder(
+                            scheduleId: doses[1].scheduleId,
+                            medicationName: doses[1].medication.name,
+                            dosage: doses[1].medication.dosage,
+                            scheduledTime: doses[1].timeLabel,
+                          );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Reminder scheduled for this dose.')),
+                        );
+                      }
+                    },
+                  ),
                 ],
               ],
               if (scan.error != null) ...[
@@ -644,9 +659,10 @@ class _GlassDoseCard extends StatelessWidget {
 }
 
 class _SecondaryDoseCard extends StatelessWidget {
-  const _SecondaryDoseCard({required this.dose});
+  const _SecondaryDoseCard({required this.dose, required this.onRemindMe});
 
   final _UpcomingDose dose;
+  final Future<void> Function() onRemindMe;
 
   @override
   Widget build(BuildContext context) {
@@ -699,11 +715,7 @@ class _SecondaryDoseCard extends StatelessWidget {
                 ],
               ),
               OutlinedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Reminder set for this dose.')),
-                  );
-                },
+                onPressed: () => onRemindMe(),
                 child: const Text('Remind Me'),
               ),
             ],

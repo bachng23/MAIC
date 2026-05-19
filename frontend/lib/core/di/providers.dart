@@ -7,6 +7,7 @@ import '../../features/health/presentation/health_controller.dart';
 import '../../features/scan/presentation/scan_controller.dart';
 import '../../features/shared/data/mediguard_api_service.dart';
 import '../../features/profile/presentation/profile_controller.dart';
+import '../notifications/medication_notification_service.dart';
 import '../network/auth_interceptor.dart';
 import '../storage/profile_storage.dart';
 import '../storage/token_storage.dart';
@@ -22,6 +23,7 @@ void invalidateUserScopedProviders(Ref ref) {
   ref.read(scanControllerProvider).clearForNewEntry();
   ref.read(healthControllerProvider).reset();
   ref.read(profileControllerProvider).reset();
+  ref.read(medicationNotificationServiceProvider).cancelAllMedicationReminders();
 }
 
 final dioProvider = Provider<Dio>((ref) {
@@ -71,8 +73,15 @@ final dashboardControllerProvider = FutureProvider<DashboardViewData>((ref) asyn
   return ref.watch(apiServiceProvider).loadDashboard();
 });
 
+final medicationNotificationServiceProvider = Provider<MedicationNotificationService>((ref) {
+  return MedicationNotificationService();
+});
+
 final scanControllerProvider = ChangeNotifierProvider<ScanController>((ref) {
-  return ScanController(ref.watch(apiServiceProvider));
+  return ScanController(
+    ref.watch(apiServiceProvider),
+    ref.watch(medicationNotificationServiceProvider),
+  );
 });
 
 final healthControllerProvider = ChangeNotifierProvider<HealthController>((ref) {

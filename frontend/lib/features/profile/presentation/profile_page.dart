@@ -127,48 +127,10 @@ class ProfilePage extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    LayoutBuilder(
-                      builder: (context, c) {
-                        final wide = c.maxWidth > 720;
-                        final tiles = [
-                          _HealthTile(
-                            icon: Icons.bloodtype,
-                            iconBg: const Color(0xFFD7E3FF),
-                            label: 'Blood Type',
-                            value: userProfile.displayOrDash(userProfile.bloodType),
-                          ),
-                          _HealthTile(
-                            icon: Icons.coronavirus_outlined,
-                            iconBg: const Color(0xFFFFDAD6),
-                            iconColor: const Color(0xFFBA1A1A),
-                            label: 'Allergies',
-                            value: userProfile.displayOrDash(userProfile.allergies),
-                          ),
-                          _HealthTile(
-                            icon: Icons.monitor_heart_outlined,
-                            iconBg: const Color(0xFFFFDFA0),
-                            iconColor: const Color(0xFF684C00),
-                            label: 'Conditions',
-                            value: userProfile.displayOrDash(userProfile.medicalConditions),
-                          ),
-                        ];
-                        if (wide) {
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              for (var i = 0; i < tiles.length; i++) ...[
-                                if (i > 0) const SizedBox(width: 12),
-                                Expanded(child: tiles[i]),
-                              ],
-                            ],
-                          );
-                        }
-                        return Column(
-                          children: [
-                            for (final t in tiles) ...[t, const SizedBox(height: 12)],
-                          ],
-                        );
-                      },
+                    _HealthProfileGrid(
+                      bloodType: userProfile.displayOrDash(userProfile.bloodType),
+                      allergies: userProfile.displayOrDash(userProfile.allergies),
+                      conditions: userProfile.displayOrDash(userProfile.medicalConditions),
                     ),
                     const SizedBox(height: 24),
                     SizedBox(
@@ -296,6 +258,55 @@ class _ContactRow extends StatelessWidget {
   }
 }
 
+class _HealthProfileGrid extends StatelessWidget {
+  const _HealthProfileGrid({
+    required this.bloodType,
+    required this.allergies,
+    required this.conditions,
+  });
+
+  final String bloodType;
+  final String allergies;
+  final String conditions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _HealthTile(
+            icon: Icons.bloodtype,
+            iconBg: const Color(0xFFD7E3FF),
+            label: 'Blood Type',
+            value: bloodType,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _HealthTile(
+            icon: Icons.coronavirus_outlined,
+            iconBg: const Color(0xFFFFDAD6),
+            iconColor: const Color(0xFFBA1A1A),
+            label: 'Allergies',
+            value: allergies,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _HealthTile(
+            icon: Icons.monitor_heart_outlined,
+            iconBg: const Color(0xFFFFDFA0),
+            iconColor: const Color(0xFF684C00),
+            label: 'Conditions',
+            value: conditions,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _HealthTile extends StatelessWidget {
   const _HealthTile({
     required this.icon,
@@ -314,7 +325,7 @@ class _HealthTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -326,13 +337,24 @@ class _HealthTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
+            radius: 16,
             backgroundColor: iconBg,
-            child: Icon(icon, color: iconColor ?? const Color(0xFF004E9F)),
+            child: Icon(icon, size: 18, color: iconColor ?? const Color(0xFF004E9F)),
           ),
-          const SizedBox(height: 12),
-          Text(label, style: const TextStyle(color: Color(0xFF4C616C), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFF4C616C), fontWeight: FontWeight.w600, fontSize: 12),
+          ),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          Text(
+            value,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, height: 1.2),
+          ),
         ],
       ),
     );

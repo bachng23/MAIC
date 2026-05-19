@@ -3,13 +3,15 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/notifications/medication_notification_service.dart';
 import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
 
 class ScanController extends ChangeNotifier {
-  ScanController(this._api);
+  ScanController(this._api, this._notifications);
 
   final MediGuardApiService _api;
+  final MedicationNotificationService _notifications;
 
   bool isLoading = false;
   String? error;
@@ -113,8 +115,15 @@ class ScanController extends ChangeNotifier {
         ),
       );
 
-      await _api.createSchedule(
+      final schedule = await _api.createSchedule(
         ScheduleCreate(medicationId: med.id, times: times),
+      );
+
+      await _notifications.requestPermissions();
+      await _notifications.syncSchedule(
+        schedule: schedule,
+        medicationName: med.name,
+        dosage: med.dosage,
       );
 
       createdMedication = med;
@@ -157,7 +166,13 @@ class ScanController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      await _api.logMedicationTaken(MedicationTakenRequest(scheduleId: scheduleId));
+      final response = await _api.logMedicationTaken(MedicationTakenRequest(scheduleId: scheduleId));
+      await _notifications.scheduleMonitoringReminder(
+        logId: response.logId,
+        scheduleId: scheduleId,
+        scheduledTime: DateTime.now().toUtc().toIso8601String(),
+        monitoringEnd: response.monitoringEnd,
+      );
     } catch (e) {
       error = e.toString();
     } finally {

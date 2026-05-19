@@ -2,8 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app.dart';
+import 'core/di/providers.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: MediAgentApp()));
+  final container = ProviderContainer();
+  await container.read(medicationNotificationServiceProvider).initialize();
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const MediAgentApp(),
+    ),
+  );
 }
