@@ -49,7 +49,7 @@ class ProfilePage extends ConsumerWidget {
                     ),
                     const Spacer(),
                     IconButton(
-                      onPressed: () {},
+                      onPressed: () => context.push('/profile/settings'),
                       icon: const Icon(Icons.settings_outlined, color: Color(0xFF004E9F)),
                     ),
                   ],
@@ -158,19 +158,6 @@ class ProfilePage extends ConsumerWidget {
                       },
                     ),
                     const SizedBox(height: 24),
-                    _SectionCard(
-                      title: 'App Settings',
-                      icon: null,
-                      child: Column(
-                        children: [
-                          _SettingsRow(icon: Icons.notifications_outlined, label: 'Notifications', onTap: () {}),
-                          _SettingsRow(icon: Icons.lock_outline, label: 'Data Privacy', onTap: () {}),
-                          _SettingsRow(icon: Icons.dark_mode_outlined, label: 'Theme (Light/Dark)', onTap: () {}),
-                          _SettingsRow(icon: Icons.help_outline, label: 'Help & Support', onTap: () {}),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
                     Center(
                       child: TextButton.icon(
                         onPressed: () async {
@@ -318,35 +305,6 @@ class _HealthTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
         ],
-      ),
-    );
-  }
-}
-
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Row(
-            children: [
-              Icon(icon, color: const Color(0xFF4C616C)),
-              const SizedBox(width: 14),
-              Expanded(child: Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500))),
-              const Icon(Icons.chevron_right, color: Color(0xFFC1C6D5)),
-            ],
-          ),
-        ),
       ),
     );
   }

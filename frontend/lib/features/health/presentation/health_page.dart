@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
-import '../../shared/models/api_models.dart';
 
 class HealthPage extends ConsumerStatefulWidget {
   const HealthPage({super.key});
@@ -85,87 +84,6 @@ class _HealthPageState extends ConsumerState<HealthPage> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth > 760;
-              if (!wide) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ActionButton(
-                      icon: Icons.monitor_heart_outlined,
-                      label: 'Fetch Status',
-                      background: const Color(0xFF0066CC),
-                      foreground: Colors.white,
-                      onPressed: controller.isLoading
-                          ? null
-                          : () => ref.read(healthControllerProvider).getStatus(_logId.text.trim()),
-                    ),
-                    const SizedBox(height: 10),
-                    _ActionButton(
-                      icon: Icons.warning_amber_rounded,
-                      label: 'Report Test Anomaly',
-                      background: const Color(0xFFE0E3E5),
-                      foreground: const Color(0xFF191C1E),
-                      onPressed: controller.isLoading
-                          ? null
-                          : () => ref.read(healthControllerProvider).reportTestAnomaly(_logId.text.trim()),
-                    ),
-                    const SizedBox(height: 10),
-                    _ActionButton(
-                      icon: Icons.verified_outlined,
-                      label: 'Resolve Alert',
-                      background: const Color(0xFFE0E3E5),
-                      foreground: const Color(0xFF191C1E),
-                      onPressed: controller.isLoading
-                          ? null
-                          : () => ref.read(healthControllerProvider).resolve(_logId.text.trim()),
-                    ),
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(
-                    child: _ActionButton(
-                      icon: Icons.monitor_heart_outlined,
-                      label: 'Fetch Status',
-                      background: const Color(0xFF0066CC),
-                      foreground: Colors.white,
-                      onPressed: controller.isLoading
-                          ? null
-                          : () => ref.read(healthControllerProvider).getStatus(_logId.text.trim()),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _ActionButton(
-                      icon: Icons.warning_amber_rounded,
-                      label: 'Report Test Anomaly',
-                      background: const Color(0xFFE0E3E5),
-                      foreground: const Color(0xFF191C1E),
-                      onPressed: controller.isLoading
-                          ? null
-                          : () => ref.read(healthControllerProvider).reportTestAnomaly(_logId.text.trim()),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _ActionButton(
-                      icon: Icons.verified_outlined,
-                      label: 'Resolve Alert',
-                      background: const Color(0xFFE0E3E5),
-                      foreground: const Color(0xFF191C1E),
-                      onPressed: controller.isLoading
-                          ? null
-                          : () => ref.read(healthControllerProvider).resolve(_logId.text.trim()),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
           if (controller.error != null) ...[
             const SizedBox(height: 12),
             Text(controller.error!, style: const TextStyle(color: Color(0xFFBA1A1A), fontWeight: FontWeight.w600)),
@@ -180,42 +98,7 @@ class _HealthPageState extends ConsumerState<HealthPage> {
                 ? null
                 : () => ref.read(healthControllerProvider).reportTestAnomaly(_logId.text.trim()),
           ),
-          if (controller.status != null) ...[
-            const SizedBox(height: 18),
-            _HealthStatusCard(status: controller.status!),
-          ],
         ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color background;
-  final Color foreground;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(50),
-        backgroundColor: background,
-        foregroundColor: foreground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
@@ -445,43 +328,6 @@ class _EmergencyAlertButton extends StatelessWidget {
           style: TextStyle(color: Color(0xFF6D7A76), fontWeight: FontWeight.w600),
         ),
       ],
-    );
-  }
-}
-
-class _HealthStatusCard extends StatelessWidget {
-  const _HealthStatusCard({required this.status});
-  final HealthStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final level = switch (status.alertLevel) {
-      AnomalyLevel.low => 'Low',
-      AnomalyLevel.medium => 'Medium',
-      AnomalyLevel.high => 'High',
-    };
-
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F4F6),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Alert Level: $level', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(
-            status.resolved
-                ? 'Resolved'
-                : status.monitoringActive
-                    ? 'Monitoring active'
-                    : 'Monitoring inactive',
-            style: const TextStyle(color: Color(0xFF3E4946)),
-          ),
-        ],
-      ),
     );
   }
 }
