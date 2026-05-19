@@ -12,6 +12,13 @@ class HealthController extends ChangeNotifier {
   String? error;
   HealthStatus? status;
 
+  void reset() {
+    isLoading = false;
+    error = null;
+    status = null;
+    notifyListeners();
+  }
+
   Future<void> getStatus(String logId) async {
     isLoading = true;
     error = null;

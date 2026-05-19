@@ -6,12 +6,30 @@ import '../../features/auth/presentation/auth_controller.dart';
 import '../../features/health/presentation/health_controller.dart';
 import '../../features/scan/presentation/scan_controller.dart';
 import '../../features/shared/data/mediguard_api_service.dart';
+import '../network/auth_interceptor.dart';
 import '../storage/token_storage.dart';
 
 const _defaultBaseUrl = 'https://maic-production-3798.up.railway.app';
 
+/// Bumped on login/logout so user-scoped [FutureProvider]s refetch instead of reusing cache.
+final authSessionIdProvider = StateProvider<int>((ref) => 0);
+
+void invalidateUserScopedProviders(Ref ref) {
+  ref.read(authSessionIdProvider.notifier).state++;
+  ref.invalidate(dashboardControllerProvider);
+  ref.read(scanControllerProvider).clearForNewEntry();
+  ref.read(healthControllerProvider).reset();
+}
+
 final dioProvider = Provider<Dio>((ref) {
-  return Dio(BaseOptions(baseUrl: _defaultBaseUrl));
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: _defaultBaseUrl,
+      headers: const {'Accept': 'application/json'},
+    ),
+  );
+  dio.interceptors.add(AuthInterceptor(ref.watch(tokenStorageProvider)));
+  return dio;
 });
 
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
@@ -33,12 +51,20 @@ final authControllerProvider = ChangeNotifierProvider<AuthController>((ref) {
   final controller = AuthController(
     ref.watch(apiServiceProvider),
     ref.watch(tokenStorageProvider),
+    onSessionChanged: () => invalidateUserScopedProviders(ref),
   );
   controller.bootstrap();
   return controller;
 });
 
 final dashboardControllerProvider = FutureProvider<DashboardViewData>((ref) async {
+  ref.watch(authSessionIdProvider);
+  final isAuthenticated = ref.watch(
+    authControllerProvider.select((auth) => auth.isAuthenticated),
+  );
+  if (!isAuthenticated) {
+    return DashboardViewData(medications: [], schedules: [], contacts: []);
+  }
   return ref.watch(apiServiceProvider).loadDashboard();
 });
 

@@ -14,10 +14,15 @@ String _userFacingError(Object e) {
 }
 
 class AuthController extends ChangeNotifier {
-  AuthController(this._api, this._tokenStorage);
+  AuthController(
+    this._api,
+    this._tokenStorage, {
+    void Function()? onSessionChanged,
+  }) : _onSessionChanged = onSessionChanged;
 
   final MediGuardApiService _api;
   final TokenStorage _tokenStorage;
+  final void Function()? _onSessionChanged;
 
   bool isLoading = false;
   String? error;
@@ -38,6 +43,7 @@ class AuthController extends ChangeNotifier {
       final token = data['access_token'] as String;
       await _api.setToken(token);
       isAuthenticated = true;
+      _onSessionChanged?.call();
       return true;
     } catch (e) {
       error = _userFacingError(e);
@@ -77,6 +83,7 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     await _api.clearToken();
     isAuthenticated = false;
+    _onSessionChanged?.call();
     notifyListeners();
   }
 }
