@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MediAgent Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-bright": "#f7f9fb",
+                    "on-error": "#ffffff",
+                    "inverse-surface": "#2d3133",
+                    "surface-container-high": "#e6e8ea",
+                    "on-secondary-fixed-variant": "#653e00",
+                    "on-secondary-fixed": "#2a1700",
+                    "tertiary-container": "#dd3432",
+                    "on-tertiary-container": "#ffffff",
+                    "error": "#ba1a1a",
+                    "secondary-fixed": "#ffddb8",
+                    "surface-variant": "#e0e3e5",
+                    "on-primary-container": "#ffffff",
+                    "surface-container-highest": "#e0e3e5",
+                    "tertiary": "#b9161c",
+                    "primary-container": "#0066CC",
+                    "inverse-primary": "#a6c8ff",
+                    "on-surface-variant": "#3e4946",
+                    "on-secondary-container": "#684000",
+                    "on-error-container": "#93000a",
+                    "surface-dim": "#d8dadc",
+                    "on-surface": "#191c1e",
+                    "on-tertiary-fixed-variant": "#93000e",
+                    "surface-container-low": "#f2f4f6",
+                    "tertiary-fixed-dim": "#ffb4ac",
+                    "secondary-container": "#fea619",
+                    "outline": "#6d7a76",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "inverse-on-surface": "#eff1f3",
+                    "primary-fixed-dim": "#a6c8ff",
+                    "surface-container": "#eceef0",
+                    "on-primary": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed": "#410003",
+                    "secondary": "#855300",
+                    "background": "#f7f9fb",
+                    "tertiary-fixed": "#ffdad6",
+                    "outline-variant": "#bdc9c5",
+                    "primary-fixed": "#d0e4ff",
+                    "surface": "#f7f9fb",
+                    "on-primary-fixed": "#001d3d",
+                    "secondary-fixed-dim": "#ffb95f",
+                    "on-primary-fixed-variant": "#004a99",
+                    "on-background": "#191c1e",
+                    "primary": "#0066CC",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-tint": "#0066CC"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.5rem",
+                    "lg": "1rem",
+                    "xl": "1.5rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Lexend", "ui-sans-serif", "system-ui", "-apple-system"],
+                    "body": ["Lexend", "ui-sans-serif", "system-ui", "-apple-system"],
+                    "label": ["Lexend", "ui-sans-serif", "system-ui", "-apple-system"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            min-height: 100dvh;
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased pb-32">
+<!-- TopAppBar -->
+<nav class="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md shadow-sm dark:shadow-none flex justify-between items-center px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-fixed">
+<img alt="User medical profile photo" class="w-full h-full object-cover" data-alt="Close-up portrait of a kind elderly person with silver hair and a gentle smile, soft natural lighting indoors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKirXNxl2dKZ2Nt_gXGivCtN2ictX56qa4-mAxhP-VJZWeqop-2UyEtHoHgJ62grhl39pjwe7xEOhWTtnHsdIDX0T_Gh7vqrk-w53248aOdvPAKh8iN8TSskRFAXBH3hjndgKK9E8ByMUfHn2b0BBXuNQWPUaXKZi75zGYqLBmrsieNWWXd3sEDG6OwmDnMtN8PJFd4idko7ldvMCYoLZoG0daJAHG2VT5bsqBJiCGQVkXbSsNXqZLhsfNTM-MCz34GqvoM8YBaIKZ"/>
+</div>
+<span class="text-2xl font-bold text-blue-900 dark:text-blue-100 font-headline tracking-tight">MediAgent</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/30 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+</div>
+</nav>
+<main class="mt-24 px-6 max-w-5xl mx-auto space-y-6">
+<!-- Dashboard Content Grid -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- 1. Today's Medications (Prioritized to Top) -->
+<section class="md:col-span-8 bg-surface-container-low rounded-lg p-6 space-y-6">
+<div class="flex justify-between items-center"><div class="flex items-center gap-3">
+<h2 class="text-xl font-bold text-on-surface">Today's Medications</h2>
+<span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-tight uppercase">3/5 Doses</span>
+</div></div>
+<div class="space-y-4">
+<!-- Dose Container - Metformin -->
+<div class="relative bg-surface-container-lowest p-5 rounded-lg flex items-center justify-between border-l-4 border-primary shadow-sm">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="pill">pill</span>
+</div>
+<div>
+<h3 class="font-bold text-base">Metformin</h3>
+<p class="text-xs text-on-surface-variant">500mg • Breakfast</p>
+</div>
+</div>
+<span class="bg-primary text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                            TAKEN
+                        </span>
+</div>
+<!-- Dose Container - Lisinopril -->
+<div class="relative bg-surface-container-lowest p-5 rounded-lg flex items-center justify-between border-l-4 border-secondary shadow-sm">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="pill">pill</span>
+</div>
+<div>
+<h3 class="font-bold text-base">Lisinopril</h3>
+<p class="text-xs text-on-surface-variant">10mg • 2:00 PM</p>
+</div>
+</div>
+<span class="bg-secondary-container text-on-secondary-container text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                            PENDING
+                        </span>
+</div>
+</div>
+<div class="pt-2"><button class="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm hover:bg-primary/5 transition-colors rounded-lg border border-primary/20"><span class="material-symbols-outlined text-sm">calendar_month</span>View Full Schedule</button></div></section>
+<!-- 2. Health Monitoring (Prioritized to Top) -->
+<section class="md:col-span-4 bg-surface-container-low rounded-lg p-6 flex flex-col justify-between space-y-6">
+<div class="space-y-6">
+<h2 class="text-xl font-bold text-on-surface">Health Monitoring</h2>
+<div class="grid grid-cols-2 md:grid-cols-1 gap-6">
+<div class="flex items-center justify-between">
+<div class="space-y-1">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Heart Rate</p>
+<div class="flex items-baseline gap-1">
+<span class="text-3xl font-black text-tertiary">72</span>
+<span class="text-xs text-on-surface-variant font-bold">BPM</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-tertiary text-3xl" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="space-y-1">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">SpO2</p>
+<div class="flex items-baseline gap-1">
+<span class="text-3xl font-black text-primary">98</span>
+<span class="text-xs text-on-surface-variant font-bold">%</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">water_drop</span>
+</div>
+</div>
+</div>
+<div class="bg-primary-fixed/20 p-4 rounded-lg flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<span class="text-[11px] font-bold text-on-primary-fixed-variant">All Vitals Normal</span>
+</div>
+</section>
+<!-- 3. Reduced Prominence Scan Action -->
+<section class="md:col-span-12">
+<button class="w-full bg-primary-container/10 border-2 border-dashed border-primary/30 text-primary p-4 rounded-xl flex items-center justify-center gap-3 hover:bg-primary-container/20 transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined" data-icon="qr_code_scanner">qr_code_scanner</span>
+<span class="font-bold">Scan New Medication</span>
+</button>
+</section>
+<!-- 4. Hero/Mantra Section (Repositioned lower) -->
+<section class="md:col-span-12 relative overflow-hidden bg-primary rounded-lg p-6 min-h-[140px] flex flex-col justify-center">
+<div class="absolute inset-0 z-0">
+<img alt="Medical background" class="w-full h-full object-cover opacity-20 mix-blend-overlay" data-alt="Clean minimalist laboratory background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOUchlZHBKFxZPNhgU5BChxxgFcChvYvEJXnPqNEkieNOiBZOPDp3EFjgHN-Xylsx7jqoAZr29e85mZynX_Mu3HLhT3huIP-0kq_VWvEiGvTqshkU10c4XUYEsMIxikBUnpjLqkzsnSGmcRM4EVcb62um5w75zi28oiHKxRL9PPqh4w8t2eYHVLD9TmwBNGzNTCdKBAEukW4WPfXpwlMUlRG_KucStr034OA8oH3tD0is2MDpgY6VYKj0EIlm5qfzyNHR8sF-8SZka"/>
+</div>
+<div class="relative z-10">
+<h1 class="text-white text-2xl font-bold leading-tight tracking-tight max-w-xs font-headline">
+                        Your health, <br/>synchronized.
+                    </h1>
+<p class="text-blue-100/80 text-sm mt-1">Daily adherence is key to recovery.</p>
+</div>
+</section>
+<!-- 5. Emergency Contacts -->
+<section class="md:col-span-5 bg-surface-container-low rounded-lg p-6 space-y-6">
+<h2 class="text-xl font-bold text-on-surface">Emergency</h2>
+<div class="flex items-center gap-3">
+<div class="flex -space-x-3">
+<img alt="Contact 1" class="w-10 h-10 rounded-full border-2 border-surface-container-low object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBlyXOs4htuBlZtOq85A8_NzBXGM9BiMSHw1HS9txHInjH3Qlpzre6vocR86scUPtI57sMwRzZCqJW4RXu4_TrJ-fv0pg1EFzw7FzAxo2PgsBIGkpT8Zl5qJ1cExNGoYPoHOnl6KLzSWlDxOxPUuDqMYe-yorVrvzllB2qEMPovnDjFplp0yVaMmzR1JFBpyC8nA7H0-m4utpyjxsXDSRrd0raeBvyeKYi18VU_VM7RBAsHzZK-1NzP4lNe_IveiKyLEdRVuDgcIinM"/>
+<img alt="Contact 2" class="w-10 h-10 rounded-full border-2 border-surface-container-low object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkrCydfZltkR2jLbgJDj4gKjr2Y1vfjB99mkHv3qXSoAJlC7n8gSpKG1opVTOGYTvyLq5pFCbuI2qxnsU7vVV_kaiHzWikZfO0oiUyiDCygiZ84Mp-h9LvEDR-enVY0GktHY0zxZIGrLCOpjGu3toWqf2gzc4cJ22dgopHnk6Qxp-pmJ5Rqmr2aR9zIWMcDgR8jCOWgt6jjamk8HhFrcDv1gXMZTt7q5kSYwu9GAVQm8-uzTdb4_rtNXX2CyRmvbOYQJ939RfSDddE"/>
+<div class="w-10 h-10 rounded-full border-2 border-surface-container-low bg-surface-variant flex items-center justify-center text-on-surface-variant text-[10px] font-bold">+2</div>
+</div>
+</div>
+<button class="w-full h-14 bg-tertiary text-on-tertiary rounded-full font-black flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform text-sm">
+<span class="material-symbols-outlined text-lg" data-icon="emergency_share" style="font-variation-settings: 'FILL' 1;">emergency_share</span>
+                    SEND ALERT
+                </button>
+</section>
+<!-- 6. Weekly Compliance -->
+<section class="md:col-span-7 bg-surface-container-low rounded-lg p-6 flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<div class="space-y-1">
+<h2 class="text-xl font-bold text-on-surface">Weekly Report</h2>
+<p class="text-xs text-on-surface-variant">Excellent consistency</p>
+</div>
+<div class="text-right">
+<p class="text-3xl font-black text-primary">94%</p>
+</div>
+</div>
+<div class="flex items-end justify-between h-16 gap-2">
+<div class="flex-1 bg-primary-fixed-dim rounded-t h-[80%]"></div>
+<div class="flex-1 bg-primary-fixed-dim rounded-t h-[95%]"></div>
+<div class="flex-1 bg-primary-fixed-dim rounded-t h-[60%]"></div>
+<div class="flex-1 bg-primary rounded-t h-[100%]"></div>
+<div class="flex-1 bg-primary-fixed-dim rounded-t h-[85%]"></div>
+<div class="flex-1 bg-primary-fixed-dim rounded-t h-[90%]"></div>
+<div class="flex-1 bg-primary-fixed-dim rounded-t h-[40%]"></div>
+</div>
+<div class="flex justify-between mt-3 text-[9px] font-bold text-on-surface-variant uppercase tracking-tighter">
+<span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+</div>
+</section>
+</div>
+</main>
+<!-- BottomNavBar -->
+<footer class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md rounded-t-3xl shadow-[0px_-12px_32px_rgba(25,28,30,0.06)] z-50">
+<a class="flex flex-col items-center justify-center bg-blue-100 dark:bg-blue-900/50 text-blue-900 dark:text-blue-100 rounded-full px-5 py-2 transition-transform duration-200 active:scale-98" href="#">
+<span class="material-symbols-outlined" data-icon="home" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-lexend text-[12px] font-medium">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-4 py-2 hover:text-blue-700 dark:hover:text-blue-300 transition-transform duration-200 active:scale-98" href="#">
+<span class="material-symbols-outlined" data-icon="pill">pill</span>
+<span class="font-lexend text-[12px] font-medium">Meds</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-4 py-2 hover:text-blue-700 dark:hover:text-blue-300 transition-transform duration-200 active:scale-98" href="#">
+<span class="material-symbols-outlined" data-icon="monitor_heart">monitor_heart</span>
+<span class="font-lexend text-[12px] font-medium">Monitor</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-4 py-2 hover:text-blue-700 dark:hover:text-blue-300 transition-transform duration-200 active:scale-98" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-lexend text-[12px] font-medium">Reports</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-4 py-2 hover:text-blue-700 dark:hover:text-blue-300 transition-transform duration-200 active:scale-98" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span class="font-lexend text-[12px] font-medium">Profile</span>
+</a>
+</footer>
+</body></html>

@@ -3,13 +3,17 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/notifications/medication_notification_service.dart';
 import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
+import 'medication_intake_controller.dart';
 
 class ScanController extends ChangeNotifier {
-  ScanController(this._api);
+  ScanController(this._api, this._notifications, this._intake);
 
   final MediGuardApiService _api;
+  final MedicationNotificationService _notifications;
+  final MedicationIntakeController _intake;
 
   bool isLoading = false;
   String? error;
@@ -113,14 +117,21 @@ class ScanController extends ChangeNotifier {
         ),
       );
 
-      await _api.createSchedule(
+      final schedule = await _api.createSchedule(
         ScheduleCreate(medicationId: med.id, times: times),
       );
 
-      createdMedication = med;
+      await _notifications.requestPermissions();
+      await _notifications.syncSchedule(
+        schedule: schedule,
+        medicationName: med.name,
+        dosage: med.dosage,
+      );
+
       _pendingSourceImageUrl = null;
       scanResult = null;
       drugInfo = null;
+      createdMedication = null;
     } catch (e) {
       error = e.toString();
       createdMedication = null;
@@ -147,19 +158,31 @@ class ScanController extends ChangeNotifier {
     return true;
   }
 
-  Future<void> logDoseTaken(String scheduleId) async {
+  Future<bool> logDoseTaken({
+    required String scheduleId,
+    required String medicationId,
+  }) async {
     if (scheduleId.isEmpty) {
       error = 'Missing schedule.';
       notifyListeners();
-      return;
+      return false;
     }
     isLoading = true;
     error = null;
     notifyListeners();
     try {
-      await _api.logMedicationTaken(MedicationTakenRequest(scheduleId: scheduleId));
+      final response = await _api.logMedicationTaken(MedicationTakenRequest(scheduleId: scheduleId));
+      await _notifications.scheduleMonitoringReminder(
+        logId: response.logId,
+        scheduleId: scheduleId,
+        scheduledTime: DateTime.now().toUtc().toIso8601String(),
+        monitoringEnd: response.monitoringEnd,
+      );
+      _intake.confirmIntake(scheduleId: scheduleId, medicationId: medicationId);
+      return true;
     } catch (e) {
       error = e.toString();
+      return false;
     } finally {
       isLoading = false;
       notifyListeners();

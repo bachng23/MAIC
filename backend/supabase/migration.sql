@@ -42,6 +42,7 @@ create table public.medications (
   name              text not null,
   name_zh           text,
   dosage            text,
+  notes             text,
   drug_info         jsonb,           -- {main_effects, side_effects, warnings, elderly_notes, interactions, source}
   source_image_url  text,
   is_active         boolean not null default true,

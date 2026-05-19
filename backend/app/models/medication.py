@@ -42,6 +42,7 @@ class MedicationCreate(BaseModel):
     name: str
     name_zh: str | None = None
     dosage: str | None = None
+    notes: str | None = None
     drug_info: DrugInfo | None = None
     source_image_url: str | None = None
 

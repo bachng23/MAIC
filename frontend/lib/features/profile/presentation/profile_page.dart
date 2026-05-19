@@ -22,6 +22,8 @@ class ProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dash = ref.watch(dashboardControllerProvider);
+    final userProfile = ref.watch(profileControllerProvider).profile;
+    final displayName = userProfile.name.trim().isEmpty ? 'MediAgent User' : userProfile.name.trim();
     final bottomPad = MediaQuery.paddingOf(context).bottom + 88;
 
     return Scaffold(
@@ -49,7 +51,7 @@ class ProfilePage extends ConsumerWidget {
                     ),
                     const Spacer(),
                     IconButton(
-                      onPressed: () {},
+                      onPressed: () => context.push('/profile/settings'),
                       icon: const Icon(Icons.settings_outlined, color: Color(0xFF004E9F)),
                     ),
                   ],
@@ -66,16 +68,27 @@ class ProfilePage extends ConsumerWidget {
                       child: Icon(Icons.person, size: 56, color: Color(0xFF004E9F)),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'MediAgent User',
+                    Text(
+                      displayName,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF004E9F)),
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF004E9F)),
                     ),
                     const Text(
                       'Your care profile',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 16, color: Color(0xFF4C616C), fontWeight: FontWeight.w500),
                     ),
+                    if (userProfile.age != null || userProfile.address.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        [
+                          if (userProfile.age != null) 'Age ${userProfile.age}',
+                          if (userProfile.address.trim().isNotEmpty) userProfile.address.trim(),
+                        ].join(' · '),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 14, color: Color(0xFF4C616C)),
+                      ),
+                    ],
                     const SizedBox(height: 28),
                     _SectionCard(
                       title: 'Emergency Contacts',
@@ -114,63 +127,28 @@ class ProfilePage extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    LayoutBuilder(
-                      builder: (context, c) {
-                        final wide = c.maxWidth > 720;
-                        final tiles = [
-                          _HealthTile(
-                            icon: Icons.bloodtype,
-                            iconBg: const Color(0xFFD7E3FF),
-                            label: 'Blood Type',
-                            value: '—',
-                          ),
-                          _HealthTile(
-                            icon: Icons.coronavirus_outlined,
-                            iconBg: const Color(0xFFFFDAD6),
-                            iconColor: const Color(0xFFBA1A1A),
-                            label: 'Allergies',
-                            value: '—',
-                          ),
-                          _HealthTile(
-                            icon: Icons.monitor_heart_outlined,
-                            iconBg: const Color(0xFFFFDFA0),
-                            iconColor: const Color(0xFF684C00),
-                            label: 'Conditions',
-                            value: '—',
-                          ),
-                        ];
-                        if (wide) {
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              for (var i = 0; i < tiles.length; i++) ...[
-                                if (i > 0) const SizedBox(width: 12),
-                                Expanded(child: tiles[i]),
-                              ],
-                            ],
-                          );
-                        }
-                        return Column(
-                          children: [
-                            for (final t in tiles) ...[t, const SizedBox(height: 12)],
-                          ],
-                        );
-                      },
+                    _HealthProfileGrid(
+                      bloodType: userProfile.displayOrDash(userProfile.bloodType),
+                      allergies: userProfile.displayOrDash(userProfile.allergies),
+                      conditions: userProfile.displayOrDash(userProfile.medicalConditions),
                     ),
                     const SizedBox(height: 24),
-                    _SectionCard(
-                      title: 'App Settings',
-                      icon: null,
-                      child: Column(
-                        children: [
-                          _SettingsRow(icon: Icons.notifications_outlined, label: 'Notifications', onTap: () {}),
-                          _SettingsRow(icon: Icons.lock_outline, label: 'Data Privacy', onTap: () {}),
-                          _SettingsRow(icon: Icons.dark_mode_outlined, label: 'Theme (Light/Dark)', onTap: () {}),
-                          _SettingsRow(icon: Icons.help_outline, label: 'Help & Support', onTap: () {}),
-                        ],
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => context.push('/profile/edit'),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: Text(userProfile.hasAnyData ? 'Edit Profile' : 'Add Profile Info'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          backgroundColor: const Color(0xFF0066CC),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     Center(
                       child: TextButton.icon(
                         onPressed: () async {
@@ -280,6 +258,55 @@ class _ContactRow extends StatelessWidget {
   }
 }
 
+class _HealthProfileGrid extends StatelessWidget {
+  const _HealthProfileGrid({
+    required this.bloodType,
+    required this.allergies,
+    required this.conditions,
+  });
+
+  final String bloodType;
+  final String allergies;
+  final String conditions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _HealthTile(
+            icon: Icons.bloodtype,
+            iconBg: const Color(0xFFD7E3FF),
+            label: 'Blood Type',
+            value: bloodType,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _HealthTile(
+            icon: Icons.coronavirus_outlined,
+            iconBg: const Color(0xFFFFDAD6),
+            iconColor: const Color(0xFFBA1A1A),
+            label: 'Allergies',
+            value: allergies,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _HealthTile(
+            icon: Icons.monitor_heart_outlined,
+            iconBg: const Color(0xFFFFDFA0),
+            iconColor: const Color(0xFF684C00),
+            label: 'Conditions',
+            value: conditions,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _HealthTile extends StatelessWidget {
   const _HealthTile({
     required this.icon,
@@ -298,7 +325,7 @@ class _HealthTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -310,43 +337,25 @@ class _HealthTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
+            radius: 16,
             backgroundColor: iconBg,
-            child: Icon(icon, color: iconColor ?? const Color(0xFF004E9F)),
+            child: Icon(icon, size: 18, color: iconColor ?? const Color(0xFF004E9F)),
           ),
-          const SizedBox(height: 12),
-          Text(label, style: const TextStyle(color: Color(0xFF4C616C), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFF4C616C), fontWeight: FontWeight.w600, fontSize: 12),
+          ),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-        ],
-      ),
-    );
-  }
-}
-
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Row(
-            children: [
-              Icon(icon, color: const Color(0xFF4C616C)),
-              const SizedBox(width: 14),
-              Expanded(child: Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500))),
-              const Icon(Icons.chevron_right, color: Color(0xFFC1C6D5)),
-            ],
+          Text(
+            value,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, height: 1.2),
           ),
-        ),
+        ],
       ),
     );
   }

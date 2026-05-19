@@ -149,12 +149,11 @@ class _MedicationEntrySheetState extends ConsumerState<MedicationEntrySheet> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ctrl.error!)));
       return;
     }
-    if (ctrl.createdMedication == null) return;
     widget.onSaved?.call();
     ref.invalidate(dashboardControllerProvider);
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Saved: ${ctrl.createdMedication!.name}')),
+      const SnackBar(content: Text('Medication and schedule added.')),
     );
   }
 
