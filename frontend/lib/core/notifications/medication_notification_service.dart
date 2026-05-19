@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
@@ -18,6 +21,8 @@ class MedicationNotificationService {
   static const _channelName = 'Medication Reminders';
   static const _channelDescription =
       'Dose reminders that mirror to Apple Watch when iPhone mirroring is enabled.';
+
+  static const _exactAlarmsErrorCode = 'exact_alarms_not_permitted';
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -39,31 +44,58 @@ class MedicationNotificationService {
 
     await _plugin.initialize(settings: initSettings);
 
-    const androidChannel = AndroidNotificationChannel(
-      _channelId,
-      _channelName,
-      description: _channelDescription,
-      importance: Importance.high,
-    );
-    await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(androidChannel);
+    if (!kIsWeb && Platform.isAndroid) {
+      const androidChannel = AndroidNotificationChannel(
+        _channelId,
+        _channelName,
+        description: _channelDescription,
+        importance: Importance.high,
+      );
+      await _plugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(androidChannel);
+      await _requestAndroidExactAlarms();
+    }
 
     _initialized = true;
   }
 
   Future<bool> requestPermissions() async {
     await initialize();
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-      return await ios?.requestPermissions(alert: true, badge: true, sound: true) ?? false;
+
+    if (kIsWeb) return true;
+
+    if (Platform.isIOS) {
+      final iosPlugin =
+          _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+      if (iosPlugin != null) {
+        return await iosPlugin.requestPermissions(alert: true, badge: true, sound: true) ?? false;
+      }
+      return false;
     }
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      final android =
+
+    if (Platform.isAndroid) {
+      final androidPlugin =
           _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      return await android?.requestNotificationsPermission() ?? true;
+      if (androidPlugin == null) return false;
+
+      final notificationsGranted =
+          await androidPlugin.requestNotificationsPermission() ?? true;
+      await _requestAndroidExactAlarms();
+      return notificationsGranted;
     }
+
     return true;
+  }
+
+  Future<void> _requestAndroidExactAlarms() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+
+    final androidPlugin =
+        _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      await androidPlugin.requestExactAlarmsPermission();
+    }
   }
 
   Future<void> cancelAllMedicationReminders() async {
@@ -142,11 +174,10 @@ class MedicationNotificationService {
       dosage: dosage,
     );
 
-    await _plugin.zonedSchedule(
+    await _safeZonedSchedule(
       id: _notificationId(scheduleId, scheduledTime, suffix: 'snooze'),
       scheduledDate: fireAt,
       notificationDetails: _notificationDetails(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       title: 'Medication Reminder',
       body: "It's time to take $body.",
       payload: payload.encode(),
@@ -169,11 +200,10 @@ class MedicationNotificationService {
       scheduledTime: scheduledTime,
     );
 
-    await _plugin.zonedSchedule(
+    await _safeZonedSchedule(
       id: _notificationId(logId, 'monitoring_end'),
       scheduledDate: fireAt,
       notificationDetails: _notificationDetails(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       title: 'Monitoring Complete',
       body: 'Post-medication monitoring window has ended.',
       payload: payload.encode(),
@@ -207,17 +237,103 @@ class MedicationNotificationService {
       dosage: dosage,
     );
 
-    await _plugin.zonedSchedule(
+    await _safeZonedSchedule(
       id: notificationId,
       scheduledDate: scheduledDate,
       notificationDetails: _notificationDetails(),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       title: 'Medication Reminder',
       body: "It's time to take $body.",
       payload: payload.encode(),
       matchDateTimeComponents: dayOfWeek == null
           ? DateTimeComponents.time
           : DateTimeComponents.dayOfWeekAndTime,
+    );
+  }
+
+  /// Schedules a zoned notification with Android exact-alarm fallbacks.
+  /// iOS uses Darwin scheduling only; [androidScheduleMode] is ignored there.
+  Future<void> _safeZonedSchedule({
+    required int id,
+    required tz.TZDateTime scheduledDate,
+    required NotificationDetails notificationDetails,
+    String? title,
+    String? body,
+    String? payload,
+    DateTimeComponents? matchDateTimeComponents,
+  }) async {
+    if (!kIsWeb && Platform.isAndroid) {
+      await _zonedScheduleOnAndroid(
+        id: id,
+        scheduledDate: scheduledDate,
+        notificationDetails: notificationDetails,
+        title: title,
+        body: body,
+        payload: payload,
+        matchDateTimeComponents: matchDateTimeComponents,
+      );
+      return;
+    }
+
+    try {
+      await _plugin.zonedSchedule(
+        id: id,
+        scheduledDate: scheduledDate,
+        notificationDetails: notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        title: title,
+        body: body,
+        payload: payload,
+        matchDateTimeComponents: matchDateTimeComponents,
+      );
+    } catch (e, stackTrace) {
+      debugPrint('MedicationNotificationService: schedule failed ($e)\n$stackTrace');
+    }
+  }
+
+  Future<void> _zonedScheduleOnAndroid({
+    required int id,
+    required tz.TZDateTime scheduledDate,
+    required NotificationDetails notificationDetails,
+    String? title,
+    String? body,
+    String? payload,
+    DateTimeComponents? matchDateTimeComponents,
+  }) async {
+    const scheduleModes = <AndroidScheduleMode>[
+      AndroidScheduleMode.exactAllowWhileIdle,
+      AndroidScheduleMode.exact,
+      AndroidScheduleMode.inexactAllowWhileIdle,
+      AndroidScheduleMode.inexact,
+    ];
+
+    for (final mode in scheduleModes) {
+      try {
+        await _plugin.zonedSchedule(
+          id: id,
+          scheduledDate: scheduledDate,
+          notificationDetails: notificationDetails,
+          androidScheduleMode: mode,
+          title: title,
+          body: body,
+          payload: payload,
+          matchDateTimeComponents: matchDateTimeComponents,
+        );
+        return;
+      } on PlatformException catch (e) {
+        if (e.code != _exactAlarmsErrorCode) {
+          debugPrint(
+            'MedicationNotificationService: Android schedule failed (${e.code}): ${e.message}',
+          );
+          return;
+        }
+      } catch (e, stackTrace) {
+        debugPrint('MedicationNotificationService: Android schedule failed ($e)\n$stackTrace');
+        return;
+      }
+    }
+
+    debugPrint(
+      'MedicationNotificationService: could not schedule notification $id after fallbacks.',
     );
   }
 
