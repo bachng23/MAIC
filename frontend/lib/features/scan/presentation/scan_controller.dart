@@ -6,12 +6,14 @@ import 'package:flutter/foundation.dart';
 import '../../../core/notifications/medication_notification_service.dart';
 import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
+import 'medication_intake_controller.dart';
 
 class ScanController extends ChangeNotifier {
-  ScanController(this._api, this._notifications);
+  ScanController(this._api, this._notifications, this._intake);
 
   final MediGuardApiService _api;
   final MedicationNotificationService _notifications;
+  final MedicationIntakeController _intake;
 
   bool isLoading = false;
   String? error;
@@ -126,10 +128,10 @@ class ScanController extends ChangeNotifier {
         dosage: med.dosage,
       );
 
-      createdMedication = med;
       _pendingSourceImageUrl = null;
       scanResult = null;
       drugInfo = null;
+      createdMedication = null;
     } catch (e) {
       error = e.toString();
       createdMedication = null;
@@ -156,11 +158,14 @@ class ScanController extends ChangeNotifier {
     return true;
   }
 
-  Future<void> logDoseTaken(String scheduleId) async {
+  Future<bool> logDoseTaken({
+    required String scheduleId,
+    required String medicationId,
+  }) async {
     if (scheduleId.isEmpty) {
       error = 'Missing schedule.';
       notifyListeners();
-      return;
+      return false;
     }
     isLoading = true;
     error = null;
@@ -173,8 +178,11 @@ class ScanController extends ChangeNotifier {
         scheduledTime: DateTime.now().toUtc().toIso8601String(),
         monitoringEnd: response.monitoringEnd,
       );
+      _intake.confirmIntake(scheduleId: scheduleId, medicationId: medicationId);
+      return true;
     } catch (e) {
       error = e.toString();
+      return false;
     } finally {
       isLoading = false;
       notifyListeners();

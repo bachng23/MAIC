@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/di/providers.dart';
+import '../../scan/presentation/medication_intake_controller.dart';
 import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
 
@@ -37,26 +38,28 @@ class HomePage extends ConsumerWidget {
         ],
       ),
       body: state.when(
-        data: (data) => LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth > 900;
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-              children: [
-                if (wide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 8, child: _MedsCard(data: data)),
+        data: (data) {
+          final intake = ref.watch(medicationIntakeControllerProvider);
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth > 900;
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+                children: [
+                  if (wide)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 8, child: _MedsCard(data: data, intake: intake)),
                       const SizedBox(width: 16),
                       const Expanded(flex: 4, child: _HealthSnapshotCard()),
                     ],
                   )
-                else ...[
-                  _MedsCard(data: data),
-                  const SizedBox(height: 16),
-                  const _HealthSnapshotCard(),
-                ],
+                  else ...[
+                    _MedsCard(data: data, intake: intake),
+                    const SizedBox(height: 16),
+                    const _HealthSnapshotCard(),
+                  ],
                 const SizedBox(height: 16),
                 _ScanActionButton(onPressed: () => context.go('/scan')),
                 const SizedBox(height: 16),
@@ -76,10 +79,11 @@ class HomePage extends ConsumerWidget {
                   const SizedBox(height: 16),
                   _EmergencyCard(data: data),
                 ],
-              ],
-            );
-          },
-        ),
+                ],
+              );
+            },
+          );
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Failed to load dashboard: $e')),
       ),
@@ -126,12 +130,13 @@ class _HeroCard extends StatelessWidget {
 }
 
 class _MedsCard extends StatelessWidget {
-  const _MedsCard({required this.data});
+  const _MedsCard({required this.data, required this.intake});
   final DashboardViewData data;
+  final MedicationIntakeController intake;
 
   @override
   Widget build(BuildContext context) {
-    final meds = data.medications.take(3).toList();
+    final meds = data.medications.where((m) => m.isActive).take(6).toList();
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF2F4F6),
@@ -168,7 +173,10 @@ class _MedsCard extends StatelessWidget {
             ...meds.map(
               (med) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _MedicationTile(med: med),
+                child: _MedicationTile(
+                  med: med,
+                  isTaken: intake.isMedicationTakenToday(med.id),
+                ),
               ),
             ),
           const SizedBox(height: 8),
@@ -184,12 +192,12 @@ class _MedsCard extends StatelessWidget {
 }
 
 class _MedicationTile extends StatelessWidget {
-  const _MedicationTile({required this.med});
+  const _MedicationTile({required this.med, required this.isTaken});
   final MedicationOut med;
+  final bool isTaken;
 
   @override
   Widget build(BuildContext context) {
-    final isTaken = med.isActive;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -223,7 +231,7 @@ class _MedicationTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              isTaken ? 'TAKEN' : 'PENDING',
+              isTaken ? 'TAKEN' : 'NOT TAKEN',
               style: TextStyle(
                 color: isTaken ? Colors.white : const Color(0xFF684000),
                 fontWeight: FontWeight.w700,

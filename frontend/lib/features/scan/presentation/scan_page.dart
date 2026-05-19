@@ -10,6 +10,7 @@ import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
 import 'med_blue_tokens.dart';
 import 'medication_entry_sheet.dart';
+import 'medication_intake_controller.dart';
 
 class _UpcomingDose {
   const _UpcomingDose({
@@ -23,18 +24,48 @@ class _UpcomingDose {
   final String timeLabel;
 }
 
-List<_UpcomingDose> _upcomingDoses(DashboardViewData data) {
+List<_UpcomingDose> _upcomingDoses(DashboardViewData data, MedicationIntakeController intake) {
   final medById = {for (final m in data.medications) m.id: m};
   final list = <_UpcomingDose>[];
   for (final s in data.schedules.where((x) => x.isActive)) {
     final med = medById[s.medicationId];
     if (med == null) continue;
     for (final t in s.times) {
+      if (!intake.isDosePendingToday(s.id)) continue;
       list.add(_UpcomingDose(scheduleId: s.id, medication: med, timeLabel: t));
     }
   }
   list.sort((a, b) => a.timeLabel.compareTo(b.timeLabel));
   return list;
+}
+
+List<_PharmacistNoteEntry> _pharmacistNotesForUser(DashboardViewData data) {
+  final entries = <_PharmacistNoteEntry>[];
+  for (final med in data.medications.where((m) => m.isActive)) {
+    final parts = <String>[];
+    if (med.notes != null && med.notes!.trim().isNotEmpty) {
+      parts.add(med.notes!.trim());
+    }
+    final drug = med.drugInfo;
+    if (drug != null) {
+      if (drug.mainEffects.trim().isNotEmpty) parts.add(drug.mainEffects.trim());
+      if (drug.elderlyNotes != null && drug.elderlyNotes!.trim().isNotEmpty) {
+        parts.add(drug.elderlyNotes!.trim());
+      }
+      for (final w in drug.warnings) {
+        if (w.trim().isNotEmpty) parts.add(w.trim());
+      }
+    }
+    if (parts.isEmpty) continue;
+    entries.add(_PharmacistNoteEntry(medicationName: med.name, text: parts.join(' ')));
+  }
+  return entries;
+}
+
+class _PharmacistNoteEntry {
+  const _PharmacistNoteEntry({required this.medicationName, required this.text});
+  final String medicationName;
+  final String text;
 }
 
 class ScanPage extends ConsumerStatefulWidget {
@@ -98,6 +129,7 @@ class _ScanPageState extends ConsumerState<ScanPage> {
   Widget build(BuildContext context) {
     final scan = ref.watch(scanControllerProvider);
     final dash = ref.watch(dashboardControllerProvider);
+    final intake = ref.watch(medicationIntakeControllerProvider);
     final bottomInset = MediaQuery.paddingOf(context).bottom + 88;
 
     if (_scannerMode) {
@@ -274,8 +306,18 @@ class _ScanPageState extends ConsumerState<ScanPage> {
       backgroundColor: const Color(0xFFF7F9FB),
       body: dash.when(
         data: (data) {
-          final doses = _upcomingDoses(data);
+          final doses = _upcomingDoses(data, intake);
           final remaining = doses.length;
+          final pharmacistNotes = _pharmacistNotesForUser(data);
+          final watchDose = doses.isNotEmpty
+              ? doses.first
+              : (data.medications.where((m) => m.isActive).isNotEmpty
+                  ? _UpcomingDose(
+                      scheduleId: '',
+                      medication: data.medications.firstWhere((m) => m.isActive),
+                      timeLabel: '',
+                    )
+                  : null);
           return ListView(
             padding: EdgeInsets.fromLTRB(24, 16, 24, bottomInset),
             children: [
@@ -393,29 +435,30 @@ class _ScanPageState extends ConsumerState<ScanPage> {
               ),
               const SizedBox(height: 16),
               if (doses.isEmpty)
-                const Text('No scheduled doses yet. Add a medication with the scanner or manual entry above, then save a schedule.')
-              else ...[
-                _GlassDoseCard(
-                  dose: doses.first,
-                  isPrimary: true,
-                  onConfirm: () async {
-                    await ref.read(scanControllerProvider).logDoseTaken(doses.first.scheduleId);
-                    if (context.mounted) {
-                      ref.invalidate(dashboardControllerProvider);
-                    }
-                  },
-                  busy: scan.isLoading,
-                ),
-                if (doses.length > 1) ...[
-                  const SizedBox(height: 14),
-                  _SecondaryDoseCard(
-                    dose: doses[1],
+                const Text(
+                  'All doses for today are confirmed, or none are scheduled yet. Add a medication above to get started.',
+                )
+              else
+                for (var i = 0; i < doses.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 14),
+                  _GlassDoseCard(
+                    dose: doses[i],
+                    isPrimary: i == 0,
+                    onConfirm: () async {
+                      final ok = await ref.read(scanControllerProvider).logDoseTaken(
+                            scheduleId: doses[i].scheduleId,
+                            medicationId: doses[i].medication.id,
+                          );
+                      if (context.mounted && ok) {
+                        ref.invalidate(dashboardControllerProvider);
+                      }
+                    },
                     onRemindMe: () async {
                       await ref.read(medicationNotificationServiceProvider).scheduleOneOffReminder(
-                            scheduleId: doses[1].scheduleId,
-                            medicationName: doses[1].medication.name,
-                            dosage: doses[1].medication.dosage,
-                            scheduledTime: doses[1].timeLabel,
+                            scheduleId: doses[i].scheduleId,
+                            medicationName: doses[i].medication.name,
+                            dosage: doses[i].medication.dosage,
+                            scheduledTime: doses[i].timeLabel,
                           );
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -423,61 +466,48 @@ class _ScanPageState extends ConsumerState<ScanPage> {
                         );
                       }
                     },
+                    busy: scan.isLoading,
                   ),
                 ],
-              ],
               if (scan.error != null) ...[
                 const SizedBox(height: 12),
                 Text(scan.error!, style: const TextStyle(color: Color(0xFFBA1A1A), fontWeight: FontWeight.w600)),
               ],
-              if (scan.createdMedication != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: Color(0xFF2E7D32)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Saved: ${scan.createdMedication!.name} (${scan.createdMedication!.id})',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 22),
-              LayoutBuilder(
-                builder: (context, c) {
-                  final wide = c.maxWidth > 720;
-                  final sideEffect = _SideEffectWatchCard(onLog: () => context.go('/health'));
-                  final note = _PharmacistNoteCard(sampleMed: doses.isNotEmpty ? doses.first.medication.name : 'Lisinopril');
-                  if (wide) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              if (watchDose != null && intake.showSideEffectWatch) ...[
+                const SizedBox(height: 22),
+                LayoutBuilder(
+                  builder: (context, c) {
+                    final wide = c.maxWidth > 720;
+                    final sideEffect = _SideEffectWatchCard(
+                      medication: watchDose.medication,
+                      onLog: () => context.go('/health'),
+                      onDismiss: () => ref.read(medicationIntakeControllerProvider).dismissSideEffectWatch(),
+                    );
+                    final note = _PharmacistNoteCard(entries: pharmacistNotes);
+                    if (wide) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: sideEffect),
+                          const SizedBox(width: 14),
+                          Expanded(child: note),
+                        ],
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(child: sideEffect),
-                        const SizedBox(width: 14),
-                        Expanded(child: note),
+                        sideEffect,
+                        const SizedBox(height: 14),
+                        note,
                       ],
                     );
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      sideEffect,
-                      const SizedBox(height: 14),
-                      note,
-                    ],
-                  );
-                },
-              ),
+                  },
+                ),
+              ] else if (pharmacistNotes.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                _PharmacistNoteCard(entries: pharmacistNotes),
+              ],
             ],
           );
         },
@@ -567,12 +597,14 @@ class _GlassDoseCard extends StatelessWidget {
     required this.dose,
     required this.isPrimary,
     required this.onConfirm,
+    required this.onRemindMe,
     required this.busy,
   });
 
   final _UpcomingDose dose;
   final bool isPrimary;
   final Future<void> Function() onConfirm;
+  final Future<void> Function() onRemindMe;
   final bool busy;
 
   @override
@@ -634,88 +666,27 @@ class _GlassDoseCard extends StatelessWidget {
               const Icon(Icons.schedule, size: 18, color: Color(0xFF3E4946)),
               const SizedBox(width: 6),
               Text(dose.timeLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: busy
-                    ? null
-                    : () async {
-                        await onConfirm();
-                      },
-                icon: const Icon(Icons.check_circle),
-                label: const Text('Confirm Intake'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF0066CC),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                  shape: const StadiumBorder(),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SecondaryDoseCard extends StatelessWidget {
-  const _SecondaryDoseCard({required this.dose, required this.onRemindMe});
-
-  final _UpcomingDose dose;
-  final Future<void> Function() onRemindMe;
-
-  @override
-  Widget build(BuildContext context) {
-    final dosage = dose.medication.dosage ?? '—';
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F4F6),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: const Color(0xFFE0E3E5),
-                child: Icon(Icons.medication_liquid, color: Colors.grey.shade700, size: 28),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(dose.medication.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                    Row(
-                      children: [
-                        Text(
-                          dosage.split(' ').first,
-                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(width: 4),
-                        const Text('MG', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF3E4946))),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('SCHEDULED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6D7A76))),
-                  Text(dose.timeLabel, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                ],
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: busy ? null : onConfirm,
+                  icon: const Icon(Icons.check_circle),
+                  label: const Text('Confirm Intake'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0066CC),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    shape: const StadiumBorder(),
+                  ),
+                ),
               ),
+              const SizedBox(width: 8),
               OutlinedButton(
-                onPressed: () => onRemindMe(),
+                onPressed: busy ? null : onRemindMe,
                 child: const Text('Remind Me'),
               ),
             ],
@@ -727,9 +698,32 @@ class _SecondaryDoseCard extends StatelessWidget {
 }
 
 class _SideEffectWatchCard extends StatelessWidget {
-  const _SideEffectWatchCard({required this.onLog});
+  const _SideEffectWatchCard({
+    required this.medication,
+    required this.onLog,
+    required this.onDismiss,
+  });
 
+  final MedicationOut medication;
   final VoidCallback onLog;
+  final VoidCallback onDismiss;
+
+  String get _title {
+    final dosage = medication.dosage?.trim();
+    if (dosage != null && dosage.isNotEmpty) {
+      return '${medication.name} $dosage';
+    }
+    return medication.name;
+  }
+
+  String get _body {
+    final effects = medication.drugInfo?.sideEffects ?? const [];
+    if (effects.isNotEmpty) {
+      final summary = effects.take(3).join(', ');
+      return 'Watch for possible side effects after your dose: $summary. Log any symptoms you notice.';
+    }
+    return 'We\'re monitoring how you respond after taking $_title. Log any nausea, fatigue, or unusual symptoms.';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -742,29 +736,36 @@ class _SideEffectWatchCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.monitor_heart, color: Color(0xFFFFE6B7)),
-              SizedBox(width: 8),
-              Text(
-                'SIDE EFFECT WATCH',
-                style: TextStyle(
-                  color: Color(0xFFFFE6B7),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                  letterSpacing: 1,
+              const Icon(Icons.monitor_heart, color: Color(0xFFFFE6B7)),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'SIDE EFFECT WATCH',
+                  style: TextStyle(
+                    color: Color(0xFFFFE6B7),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                    letterSpacing: 1,
+                  ),
                 ),
+              ),
+              IconButton(
+                onPressed: onDismiss,
+                icon: const Icon(Icons.close, color: Colors.white),
+                tooltip: 'Dismiss',
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'Metformin 500mg',
-            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+          const SizedBox(height: 4),
+          Text(
+            _title,
+            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
           Text(
-            'We\'ve noticed a slight change in your activity levels since Tuesday. Any nausea or fatigue?',
+            _body,
             style: TextStyle(color: Colors.white.withValues(alpha: 0.92), height: 1.35, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 14),
@@ -781,7 +782,7 @@ class _SideEffectWatchCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               TextButton(
-                onPressed: () {},
+                onPressed: onDismiss,
                 child: const Text('Dismiss', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
               ),
             ],
@@ -793,9 +794,9 @@ class _SideEffectWatchCard extends StatelessWidget {
 }
 
 class _PharmacistNoteCard extends StatelessWidget {
-  const _PharmacistNoteCard({required this.sampleMed});
+  const _PharmacistNoteCard({required this.entries});
 
-  final String sampleMed;
+  final List<_PharmacistNoteEntry> entries;
 
   @override
   Widget build(BuildContext context) {
@@ -815,14 +816,28 @@ class _PharmacistNoteCard extends StatelessWidget {
                 child: Icon(Icons.info_outline, color: Colors.orange.shade100),
               ),
               const SizedBox(width: 12),
-              const Text('Pharmacist\'s Note', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+              const Text('Pharmacist\'s Notes', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            '"Take your $sampleMed on an empty stomach when directed. Stay hydrated throughout the day."',
-            style: const TextStyle(fontStyle: FontStyle.italic, height: 1.4, color: Color(0xFF2A1700)),
-          ),
+          const SizedBox(height: 12),
+          if (entries.isEmpty)
+            const Text(
+              'No pharmacist notes yet. Add medications with notes or drug info to see guidance here.',
+              style: TextStyle(fontStyle: FontStyle.italic, height: 1.4, color: Color(0xFF2A1700)),
+            )
+          else
+            for (var i = 0; i < entries.length; i++) ...[
+              if (i > 0) const SizedBox(height: 12),
+              Text(
+                entries[i].medicationName,
+                style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2A1700)),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                entries[i].text,
+                style: const TextStyle(fontStyle: FontStyle.italic, height: 1.4, color: Color(0xFF2A1700)),
+              ),
+            ],
         ],
       ),
     );

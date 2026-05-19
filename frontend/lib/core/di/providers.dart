@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/presentation/auth_controller.dart';
 import '../../features/health/presentation/health_controller.dart';
+import '../../features/scan/presentation/medication_intake_controller.dart';
 import '../../features/scan/presentation/scan_controller.dart';
 import '../../features/shared/data/mediguard_api_service.dart';
 import '../../features/profile/presentation/profile_controller.dart';
@@ -23,6 +24,7 @@ void invalidateUserScopedProviders(Ref ref) {
   ref.read(scanControllerProvider).clearForNewEntry();
   ref.read(healthControllerProvider).reset();
   ref.read(profileControllerProvider).reset();
+  ref.read(medicationIntakeControllerProvider).reset();
   ref.read(medicationNotificationServiceProvider).cancelAllMedicationReminders();
 }
 
@@ -77,10 +79,15 @@ final medicationNotificationServiceProvider = Provider<MedicationNotificationSer
   return MedicationNotificationService();
 });
 
+final medicationIntakeControllerProvider = ChangeNotifierProvider<MedicationIntakeController>((ref) {
+  return MedicationIntakeController();
+});
+
 final scanControllerProvider = ChangeNotifierProvider<ScanController>((ref) {
   return ScanController(
     ref.watch(apiServiceProvider),
     ref.watch(medicationNotificationServiceProvider),
+    ref.watch(medicationIntakeControllerProvider),
   );
 });
 
