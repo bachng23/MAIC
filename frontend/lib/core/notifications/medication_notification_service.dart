@@ -166,7 +166,6 @@ class MedicationNotificationService {
     await requestPermissions();
 
     final fireAt = tz.TZDateTime.now(tz.local).add(delay);
-    final body = _reminderBody(medicationName, dosage);
     final payload = MedicationReminderPayload.reminder(
       scheduleId: scheduleId,
       scheduledTime: scheduledTime,
@@ -178,8 +177,8 @@ class MedicationNotificationService {
       id: _notificationId(scheduleId, scheduledTime, suffix: 'snooze'),
       scheduledDate: fireAt,
       notificationDetails: _notificationDetails(),
-      title: 'Medication Reminder',
-      body: "It's time to take $body.",
+      title: 'Still haven\'t taken it?',
+      body: _snoozeBody(medicationName, dosage),
       payload: payload.encode(),
     );
   }
@@ -204,8 +203,8 @@ class MedicationNotificationService {
       id: _notificationId(logId, 'monitoring_end'),
       scheduledDate: fireAt,
       notificationDetails: _notificationDetails(),
-      title: 'Monitoring Complete',
-      body: 'Post-medication monitoring window has ended.',
+      title: 'All good so far?',
+      body: 'Your 2-hour check-in is done. Hope you\'re feeling well — log anything unusual if needed.',
       payload: payload.encode(),
     );
   }
@@ -229,7 +228,6 @@ class MedicationNotificationService {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
 
-    final body = _reminderBody(medicationName, dosage);
     final payload = MedicationReminderPayload.reminder(
       scheduleId: scheduleId,
       scheduledTime: scheduledTime,
@@ -241,8 +239,8 @@ class MedicationNotificationService {
       id: notificationId,
       scheduledDate: scheduledDate,
       notificationDetails: _notificationDetails(),
-      title: 'Medication Reminder',
-      body: "It's time to take $body.",
+      title: _reminderTitle(scheduledTime),
+      body: _reminderBody(medicationName, dosage),
       payload: payload.encode(),
       matchDateTimeComponents: dayOfWeek == null
           ? DateTimeComponents.time
@@ -369,8 +367,24 @@ class MedicationNotificationService {
     );
   }
 
+  String _reminderTitle(String scheduledTime) {
+    final parts = scheduledTime.split(':');
+    final hour = int.tryParse(parts.firstOrNull ?? '') ?? 12;
+    if (hour < 10) return 'Morning meds time!';
+    if (hour < 13) return 'Quick reminder before lunch';
+    if (hour < 17) return 'Afternoon meds — don\'t forget';
+    if (hour < 20) return 'Evening meds time';
+    return 'Last meds of the day';
+  }
+
   String _reminderBody(String medicationName, String? dosage) {
-    return dosage == null || dosage.isEmpty ? medicationName : '$medicationName ($dosage)';
+    final med = dosage == null || dosage.isEmpty ? medicationName : '$medicationName ($dosage)';
+    return 'Hey, time to take your $med. You\'ve got this!';
+  }
+
+  String _snoozeBody(String medicationName, String? dosage) {
+    final med = dosage == null || dosage.isEmpty ? medicationName : '$medicationName ($dosage)';
+    return 'Just a nudge — your $med is waiting. Take it when you can!';
   }
 
   int _notificationId(String a, String b, {int? dayOfWeek, String suffix = ''}) {
