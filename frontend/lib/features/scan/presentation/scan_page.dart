@@ -11,7 +11,6 @@ import '../../shared/models/api_models.dart';
 import 'med_blue_tokens.dart';
 import 'medication_entry_sheet.dart';
 import 'medication_intake_controller.dart';
-import 'multi_med_review_sheet.dart';
 import 'scanner_screen.dart';
 
 class _UpcomingDose {
@@ -125,22 +124,6 @@ class _ScanPageState extends ConsumerState<ScanPage> {
       if (mounted) setState(() {});
     }
 
-    // Multiple medications → list review sheet
-    if (s.scanResults != null && s.scanResults!.length > 1) {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        backgroundColor: Colors.transparent,
-        builder: (ctx) => MultiMedReviewSheet(
-          medications: s.scanResults!,
-          onAllSaved: onDone,
-        ),
-      );
-      return;
-    }
-
-    // Single medication → entry sheet
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
