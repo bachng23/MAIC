@@ -442,6 +442,7 @@ class _ScanPageState extends ConsumerState<ScanPage> {
                   _GlassDoseCard(
                     dose: doses[i],
                     isPrimary: i == 0,
+                    isDueNow: _dueNowDoses(doses).any((d) => d.scheduleId == doses[i].scheduleId),
                     onConfirm: () async {
                       final ok = await ref.read(scanControllerProvider).logDoseTaken(
                             scheduleId: doses[i].scheduleId,
@@ -536,6 +537,7 @@ class _GlassDoseCard extends StatelessWidget {
   const _GlassDoseCard({
     required this.dose,
     required this.isPrimary,
+    required this.isDueNow,
     required this.onConfirm,
     required this.onRemindMe,
     required this.busy,
@@ -543,6 +545,7 @@ class _GlassDoseCard extends StatelessWidget {
 
   final _UpcomingDose dose;
   final bool isPrimary;
+  final bool isDueNow;
   final Future<void> Function() onConfirm;
   final Future<void> Function() onRemindMe;
   final bool busy;
@@ -550,10 +553,11 @@ class _GlassDoseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dosage = dose.medication.dosage ?? '—';
+    final borderColor = isDueNow ? const Color(0xFF0066CC) : const Color(0xFFCDD5DB);
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: const Border(left: BorderSide(color: Color(0xFF0066CC), width: 8)),
+        border: Border(left: BorderSide(color: borderColor, width: 8)),
         gradient: LinearGradient(
           colors: [
             Colors.white.withValues(alpha: 0.92),
@@ -574,12 +578,12 @@ class _GlassDoseCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.medication, color: Color(0xFF0066CC)),
+                  Icon(Icons.medication, color: isDueNow ? const Color(0xFF0066CC) : const Color(0xFFADB5BD)),
                   const SizedBox(width: 8),
                   Text(dose.medication.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
                 ],
               ),
-              if (isPrimary)
+              if (isDueNow && isPrimary)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
@@ -603,9 +607,15 @@ class _GlassDoseCard extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              const Icon(Icons.schedule, size: 18, color: Color(0xFF3E4946)),
+              Icon(Icons.schedule, size: 18, color: isDueNow ? const Color(0xFF3E4946) : const Color(0xFFADB5BD)),
               const SizedBox(width: 6),
-              Text(dose.timeLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
+              Text(
+                dose.timeLabel,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: isDueNow ? null : const Color(0xFFADB5BD),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -613,12 +623,14 @@ class _GlassDoseCard extends StatelessWidget {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: busy ? null : onConfirm,
+                  onPressed: (busy || !isDueNow) ? null : onConfirm,
                   icon: const Icon(Icons.check_circle),
-                  label: const Text('Confirm Intake'),
+                  label: Text(isDueNow ? 'Confirm Intake' : 'Not yet due'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF0066CC),
-                    foregroundColor: Colors.white,
+                    backgroundColor: isDueNow ? const Color(0xFF0066CC) : const Color(0xFFE8EAED),
+                    foregroundColor: isDueNow ? Colors.white : const Color(0xFFADB5BD),
+                    disabledBackgroundColor: const Color(0xFFE8EAED),
+                    disabledForegroundColor: const Color(0xFFADB5BD),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     shape: const StadiumBorder(),
                   ),
