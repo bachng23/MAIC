@@ -84,6 +84,7 @@ class _ScannerScreenState extends State<ScannerScreen>
       );
       _controller = ctrl;
       await ctrl.initialize();
+      await ctrl.lockCaptureOrientation(DeviceOrientation.portraitUp);
       if (!mounted) return;
       setState(() => _initializing = false);
     } catch (e) {
