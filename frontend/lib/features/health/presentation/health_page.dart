@@ -312,7 +312,7 @@ class _EmergencyAlertButton extends StatelessWidget {
     // 1. Report to backend (even without active session — user may feel unwell anytime)
     final health = ref.read(healthControllerProvider);
     if (logId.isNotEmpty) {
-      await health.reportEmergency(logId);
+      await health.reportTestAnomaly(logId);
     }
 
     if (!context.mounted) return;
