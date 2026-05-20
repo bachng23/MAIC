@@ -36,7 +36,15 @@ List<_UpcomingDose> _upcomingDoses(DashboardViewData data, MedicationIntakeContr
       list.add(_UpcomingDose(scheduleId: s.id, medication: med, timeLabel: t));
     }
   }
-  list.sort((a, b) => a.timeLabel.compareTo(b.timeLabel));
+  final now = DateTime.now();
+  int minutesFromNow(String t) {
+    final parts = t.split(':');
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    final scheduled = DateTime(now.year, now.month, now.day, h, m);
+    return now.difference(scheduled).inMinutes.abs();
+  }
+  list.sort((a, b) => minutesFromNow(a.timeLabel).compareTo(minutesFromNow(b.timeLabel)));
   return list;
 }
 
