@@ -37,7 +37,10 @@ final dioProvider = Provider<Dio>((ref) {
       headers: const {'Accept': 'application/json'},
     ),
   );
-  dio.interceptors.add(AuthInterceptor(ref.watch(tokenStorageProvider)));
+  dio.interceptors.add(AuthInterceptor(
+    ref.watch(tokenStorageProvider),
+    onUnauthorized: () => ref.read(authControllerProvider).logout(),
+  ));
   return dio;
 });
 
