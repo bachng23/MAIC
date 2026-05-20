@@ -86,21 +86,27 @@ class MediGuardApiService {
     }
   }
 
-  Future<OCRScanResult> scanMedication(OCRScanRequest payload) async {
+  Future<List<OCRScanResult>> scanMedication(OCRScanRequest payload) async {
     try {
       final token = await getToken();
       if (token == null) throw Exception('Please log in first.');
+      // OCR calls an external AI API — allow up to 90 s for the response.
       final response = await _dio.post<Map<String, dynamic>>(
         '/api/v1/medications/scan',
         data: payload.toJson(),
-        options: Options(headers: {'Authorization': 'Bearer $token'}, contentType: 'application/json'),
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          contentType: 'application/json',
+          receiveTimeout: const Duration(seconds: 90),
+        ),
       );
-      final parsed = ApiResponse<OCRScanResult>.fromJson(
+      final parsed = ApiResponse<List<OCRScanResult>>.fromJson(
         response.data!,
-        (json) => OCRScanResult.fromJson(Map<String, dynamic>.from(json! as Map)),
+        (json) => (json! as List)
+            .map((e) => OCRScanResult.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
       );
-      if (parsed.data == null) throw Exception(parsed.message ?? 'Scan failed.');
-      return parsed.data!;
+      return parsed.data ?? [];
     } on DioException catch (e) {
       throw Exception(_dioFailureMessage(e));
     }

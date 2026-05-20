@@ -6,7 +6,11 @@ from pydantic import BaseModel, Field, field_validator
 # ── OCR ──────────────────────────────────────────────────────────────────────
 
 class OCRScanRequest(BaseModel):
-    image_base64: str
+    # At least one of image_base64 or ocr_text must be provided.
+    # ocr_text: pre-extracted raw text from on-device Apple Vision OCR.
+    # When ocr_text is supplied the vision model is skipped (faster & cheaper).
+    image_base64: str | None = None
+    ocr_text: str | None = None
 
 
 class OCRScanResult(BaseModel):

@@ -59,14 +59,22 @@ class APNSTokenUpdate {
   final String apnsToken;
 }
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class OCRScanRequest {
-  OCRScanRequest({required this.imageBase64});
+  /// Either [imageBase64] or [ocrText] must be non-null.
+  /// [ocrText] is pre-extracted raw text from on-device Apple Vision OCR.
+  /// When provided, the backend skips the vision model (faster & cheaper).
+  OCRScanRequest({this.imageBase64, this.ocrText})
+      : assert(imageBase64 != null || ocrText != null,
+            'OCRScanRequest: provide imageBase64 or ocrText');
   factory OCRScanRequest.fromJson(Map<String, dynamic> json) => _$OCRScanRequestFromJson(json);
   Map<String, dynamic> toJson() => _$OCRScanRequestToJson(this);
 
   @JsonKey(name: 'image_base64')
-  final String imageBase64;
+  final String? imageBase64;
+
+  @JsonKey(name: 'ocr_text')
+  final String? ocrText;
 }
 
 @JsonSerializable()

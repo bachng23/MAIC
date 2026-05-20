@@ -68,10 +68,20 @@ Map<String, dynamic> _$APNSTokenUpdateToJson(APNSTokenUpdate instance) =>
     <String, dynamic>{'apns_token': instance.apnsToken};
 
 OCRScanRequest _$OCRScanRequestFromJson(Map<String, dynamic> json) =>
-    OCRScanRequest(imageBase64: json['image_base64'] as String);
+    OCRScanRequest(
+      imageBase64: json['image_base64'] as String?,
+      ocrText: json['ocr_text'] as String?,
+    );
 
-Map<String, dynamic> _$OCRScanRequestToJson(OCRScanRequest instance) =>
-    <String, dynamic>{'image_base64': instance.imageBase64};
+Map<String, dynamic> _$OCRScanRequestToJson(OCRScanRequest instance) {
+  final val = <String, dynamic>{};
+  void writeNotNull(String key, dynamic value) {
+    if (value != null) val[key] = value;
+  }
+  writeNotNull('image_base64', instance.imageBase64);
+  writeNotNull('ocr_text', instance.ocrText);
+  return val;
+}
 
 OCRScanResult _$OCRScanResultFromJson(Map<String, dynamic> json) =>
     OCRScanResult(

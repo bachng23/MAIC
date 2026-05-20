@@ -60,10 +60,15 @@ def get_medication_log_for_user(db, log_id: str, user_id: str):
     return result.data[0] if result.data else None
 
 
-@router.post("/scan", response_model=APIResponse[OCRScanResult])
+@router.post("/scan", response_model=APIResponse[list[OCRScanResult]])
 async def scan_medication(body: OCRScanRequest, user: dict = Depends(get_current_user)):
-    result = await parse_medication_image(body.image_base64, user["id"])
-    return APIResponse(data=result)
+    if not body.image_base64 and not body.ocr_text:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide image_base64 or ocr_text",
+        )
+    results = await parse_medication_image(body.image_base64, user["id"], body.ocr_text)
+    return APIResponse(data=results)
 
 
 @router.post("/drug-info", response_model=APIResponse[DrugInfo])

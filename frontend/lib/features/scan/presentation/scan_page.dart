@@ -40,33 +40,57 @@ List<_UpcomingDose> _upcomingDoses(DashboardViewData data, MedicationIntakeContr
   return list;
 }
 
+/// Returns doses whose scheduled time is within [windowMinutes] of now.
+List<_UpcomingDose> _dueNowDoses(List<_UpcomingDose> doses, {int windowMinutes = 15}) {
+  final now = DateTime.now();
+  return doses.where((d) {
+    if (d.timeLabel.isEmpty) return false;
+    final parts = d.timeLabel.split(':');
+    if (parts.length != 2) return false;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return false;
+    final scheduled = DateTime(now.year, now.month, now.day, h, m);
+    return now.difference(scheduled).inMinutes.abs() <= windowMinutes;
+  }).toList();
+}
+
 List<_PharmacistNoteEntry> _pharmacistNotesForUser(DashboardViewData data) {
   final entries = <_PharmacistNoteEntry>[];
   for (final med in data.medications.where((m) => m.isActive)) {
-    final parts = <String>[];
+    final sections = <_NoteSection>[];
     if (med.notes != null && med.notes!.trim().isNotEmpty) {
-      parts.add(med.notes!.trim());
+      sections.add(_NoteSection(label: 'Notes', lines: [med.notes!.trim()]));
     }
     final drug = med.drugInfo;
     if (drug != null) {
-      if (drug.mainEffects.trim().isNotEmpty) parts.add(drug.mainEffects.trim());
-      if (drug.elderlyNotes != null && drug.elderlyNotes!.trim().isNotEmpty) {
-        parts.add(drug.elderlyNotes!.trim());
+      if (drug.mainEffects.trim().isNotEmpty) {
+        sections.add(_NoteSection(label: 'Effects', lines: [drug.mainEffects.trim()]));
       }
-      for (final w in drug.warnings) {
-        if (w.trim().isNotEmpty) parts.add(w.trim());
+      if (drug.elderlyNotes != null && drug.elderlyNotes!.trim().isNotEmpty) {
+        sections.add(_NoteSection(label: 'Elderly caution', lines: [drug.elderlyNotes!.trim()]));
+      }
+      final warnings = drug.warnings.map((w) => w.trim()).where((w) => w.isNotEmpty).toList();
+      if (warnings.isNotEmpty) {
+        sections.add(_NoteSection(label: 'Warnings', lines: warnings));
       }
     }
-    if (parts.isEmpty) continue;
-    entries.add(_PharmacistNoteEntry(medicationName: med.name, text: parts.join(' ')));
+    if (sections.isEmpty) continue;
+    entries.add(_PharmacistNoteEntry(medicationName: med.name, sections: sections));
   }
   return entries;
 }
 
+class _NoteSection {
+  const _NoteSection({required this.label, required this.lines});
+  final String label;
+  final List<String> lines;
+}
+
 class _PharmacistNoteEntry {
-  const _PharmacistNoteEntry({required this.medicationName, required this.text});
+  const _PharmacistNoteEntry({required this.medicationName, required this.sections});
   final String medicationName;
-  final String text;
+  final List<_NoteSection> sections;
 }
 
 class ScanPage extends ConsumerStatefulWidget {
@@ -77,6 +101,40 @@ class ScanPage extends ConsumerStatefulWidget {
 }
 
 class _ScanPageState extends ConsumerState<ScanPage> {
+  /// Logs every dose in [dueDoses] as taken, then navigates to Monitor.
+  Future<void> _confirmAll(List<_UpcomingDose> dueDoses) async {
+    if (dueDoses.isEmpty) return;
+    final scan = ref.read(scanControllerProvider);
+    int succeeded = 0;
+    for (final dose in dueDoses) {
+      final ok = await scan.logDoseTaken(
+        scheduleId: dose.scheduleId,
+        medicationId: dose.medication.id,
+      );
+      if (ok) succeeded++;
+    }
+    if (!mounted) return;
+    ref.invalidate(dashboardControllerProvider);
+    if (succeeded == dueDoses.length) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✓ $succeeded dose${succeeded > 1 ? 's' : ''} confirmed — monitoring started'),
+          backgroundColor: const Color(0xFF0066CC),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      context.go('/health');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$succeeded/${dueDoses.length} confirmed. ${scan.error ?? ''}'),
+          backgroundColor: const Color(0xFFBA1A1A),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _openManualMedicationEntry() {
     ref.read(scanControllerProvider).clearForNewEntry();
     showModalBottomSheet<void>(
@@ -114,24 +172,61 @@ class _ScanPageState extends ConsumerState<ScanPage> {
   }
 
   Future<void> _runOcrAndOpenReview(File imageFile) async {
+    // Show loading overlay while OCR runs
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _OcrLoadingDialog(),
+    );
+
     await ref.read(scanControllerProvider).runOcrFromImage(imageFile);
+
     if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // dismiss loading overlay
+
     final s = ref.read(scanControllerProvider);
-    if (s.error != null || s.scanResult == null) return;
-    if (!mounted) return;
+
+    if (s.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(s.error!),
+          backgroundColor: const Color(0xFFBA1A1A),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (s.scanResults.isEmpty) return;
 
     void onDone() {
       if (mounted) setState(() {});
     }
 
+    // Single medication: use the existing review sheet directly.
+    if (s.scanResults.length == 1) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => MedicationEntrySheet(
+          initialOcr: s.scanResult,
+          initialDrugInfo: s.drugInfo,
+          onSaved: onDone,
+        ),
+      );
+      return;
+    }
+
+    // Multiple medications: show a picker sheet listing all detected meds.
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => MedicationEntrySheet(
-        initialOcr: s.scanResult,
-        initialDrugInfo: s.drugInfo,
+      builder: (ctx) => _MultiMedPickerSheet(
+        results: s.scanResults,
+        primaryDrugInfo: s.drugInfo,
         onSaved: onDone,
       ),
     );
@@ -280,7 +375,68 @@ class _ScanPageState extends ConsumerState<ScanPage> {
                 const Text(
                   'All doses for today are confirmed, or none are scheduled yet. Add a medication above to get started.',
                 )
-              else
+              else ...[
+                // ── Take All Due Now banner ────────────────────────────────────
+                Builder(builder: (context) {
+                  final dueNow = _dueNowDoses(doses);
+                  if (dueNow.isEmpty) return const SizedBox.shrink();
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF004E9F), Color(0xFF0066CC)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.medication_liquid, color: Colors.white, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${dueNow.length} dose${dueNow.length > 1 ? 's' : ''} due now',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                dueNow.map((d) => d.medication.name).join(', '),
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          onPressed: scan.isLoading ? null : () => _confirmAll(dueNow),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF004E9F),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            shape: const StadiumBorder(),
+                            textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                          ),
+                          child: const Text('Take All'),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+
+                // ── Individual dose cards ──────────────────────────────────────
                 for (var i = 0; i < doses.length; i++) ...[
                   if (i > 0) const SizedBox(height: 14),
                   _GlassDoseCard(
@@ -291,8 +447,25 @@ class _ScanPageState extends ConsumerState<ScanPage> {
                             scheduleId: doses[i].scheduleId,
                             medicationId: doses[i].medication.id,
                           );
-                      if (context.mounted && ok) {
+                      if (!context.mounted) return;
+                      if (ok) {
                         ref.invalidate(dashboardControllerProvider);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('✓ ${doses[i].medication.name} confirmed'),
+                            backgroundColor: const Color(0xFF0066CC),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      } else {
+                        final err = ref.read(scanControllerProvider).error;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(err ?? 'Failed to log dose'),
+                            backgroundColor: const Color(0xFFBA1A1A),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
                       }
                     },
                     onRemindMe: () async {
@@ -311,9 +484,6 @@ class _ScanPageState extends ConsumerState<ScanPage> {
                     busy: scan.isLoading,
                   ),
                 ],
-              if (scan.error != null) ...[
-                const SizedBox(height: 12),
-                Text(scan.error!, style: const TextStyle(color: Color(0xFFBA1A1A), fontWeight: FontWeight.w600)),
               ],
               if (watchDose != null && intake.showSideEffectWatch) ...[
                 const SizedBox(height: 22),
@@ -571,7 +741,6 @@ class _PharmacistNoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFFFFDDB8),
         borderRadius: BorderRadius.circular(16),
@@ -579,36 +748,411 @@ class _PharmacistNoteCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Header ──────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: const Color(0xFF071E27),
+                  child: Icon(Icons.info_outline, color: Colors.orange.shade100),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Pharmacist\'s Notes',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Empty state ──────────────────────────────────────────────────────
+          if (entries.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Text(
+                'No pharmacist notes yet. Add medications with drug info to see guidance here.',
+                style: TextStyle(color: const Color(0xFF2A1700).withValues(alpha: 0.7), height: 1.4),
+              ),
+            )
+
+          // ── Expandable tiles per medication ─────────────────────────────────
+          else
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+              child: Column(
+                children: [
+                  for (var i = 0; i < entries.length; i++)
+                    _NoteExpansionTile(
+                      entry: entries[i],
+                      isLast: i == entries.length - 1,
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoteExpansionTile extends StatefulWidget {
+  const _NoteExpansionTile({required this.entry, required this.isLast});
+  final _PharmacistNoteEntry entry;
+  final bool isLast;
+
+  @override
+  State<_NoteExpansionTile> createState() => _NoteExpansionTileState();
+}
+
+class _NoteExpansionTileState extends State<_NoteExpansionTile> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Divider between tiles
+        Container(height: 1, color: const Color(0xFFE8C07A)),
+
+        // Tap row — medication name + chevron
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            child: Row(
+              children: [
+                const Icon(Icons.medication_outlined, size: 18, color: Color(0xFF6B3A00)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.entry.medicationName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: Color(0xFF2A1700),
+                    ),
+                  ),
+                ),
+                AnimatedRotation(
+                  turns: _expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF6B3A00)),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Expanded content
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          child: _expanded
+              ? Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    20, 0, 20, widget.isLast ? 20 : 14,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final section in widget.entry.sections) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          section.label.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                            color: Color(0xFF6B3A00),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (section.lines.length == 1)
+                          Text(
+                            section.lines.first,
+                            style: const TextStyle(
+                              color: Color(0xFF2A1700),
+                              height: 1.45,
+                              fontSize: 14,
+                            ),
+                          )
+                        else
+                          for (final line in section.lines)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 3),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('• ', style: TextStyle(color: Color(0xFF6B3A00), fontWeight: FontWeight.w700)),
+                                  Expanded(
+                                    child: Text(
+                                      line,
+                                      style: const TextStyle(
+                                        color: Color(0xFF2A1700),
+                                        height: 1.45,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                      ],
+                    ],
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Multi-medication picker sheet ─────────────────────────────────────────────
+// Shown when OCR detects more than one medication on a prescription.
+// User taps "Add" on each card to open the review/schedule sheet.
+
+class _MultiMedPickerSheet extends ConsumerStatefulWidget {
+  const _MultiMedPickerSheet({
+    required this.results,
+    required this.primaryDrugInfo,
+    required this.onSaved,
+  });
+
+  final List<OCRScanResult> results;
+  final DrugInfo? primaryDrugInfo;
+  final VoidCallback onSaved;
+
+  @override
+  ConsumerState<_MultiMedPickerSheet> createState() => _MultiMedPickerSheetState();
+}
+
+class _MultiMedPickerSheetState extends ConsumerState<_MultiMedPickerSheet> {
+  // Track which medications have been added so we can show a checkmark.
+  final Set<int> _added = {};
+
+  Future<void> _openEntry(int index) async {
+    final ocr = widget.results[index];
+    // Only the first result gets the pre-fetched drug info.
+    final info = index == 0 ? widget.primaryDrugInfo : null;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => MedicationEntrySheet(
+        initialOcr: ocr,
+        initialDrugInfo: info,
+        onSaved: () {
+          setState(() => _added.add(index));
+          widget.onSaved();
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.paddingOf(context).bottom + 16;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF7F9FC),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(24, 16, 24, bottomPad),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCDD5DB),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
           Row(
             children: [
-              CircleAvatar(
-                backgroundColor: const Color(0xFF071E27),
-                child: Icon(Icons.info_outline, color: Colors.orange.shade100),
+              const Icon(Icons.medication, color: Color(0xFF0066CC), size: 24),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${widget.results.length} Medications Detected',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0B3A70)),
+                    ),
+                    const Text(
+                      'Tap Add to review and schedule each one',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF4C616C)),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 12),
-              const Text('Pharmacist\'s Notes', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
             ],
           ),
-          const SizedBox(height: 12),
-          if (entries.isEmpty)
-            const Text(
-              'No pharmacist notes yet. Add medications with notes or drug info to see guidance here.',
-              style: TextStyle(fontStyle: FontStyle.italic, height: 1.4, color: Color(0xFF2A1700)),
-            )
-          else
-            for (var i = 0; i < entries.length; i++) ...[
-              if (i > 0) const SizedBox(height: 12),
-              Text(
-                entries[i].medicationName,
-                style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2A1700)),
+          const SizedBox(height: 16),
+          // Constrain height so long lists scroll
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.55,
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: widget.results.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
+              itemBuilder: (ctx, i) {
+                final r = widget.results[i];
+                final done = _added.contains(i);
+                return Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: done ? const Color(0xFF2E7D32) : const Color(0xFFDDE3EA),
+                    ),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x08191C1E), blurRadius: 8, offset: Offset(0, 2)),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: done ? const Color(0xFFE8F5E9) : const Color(0xFFE6EFFE),
+                        child: Icon(
+                          done ? Icons.check_circle : Icons.medication_outlined,
+                          color: done ? const Color(0xFF2E7D32) : const Color(0xFF0066CC),
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              r.name,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                            ),
+                            if (r.nameZh != null)
+                              Text(r.nameZh!, style: const TextStyle(color: Color(0xFF4C616C), fontSize: 13)),
+                            if (r.dosage != null || r.frequency != null)
+                              Text(
+                                [if (r.dosage != null) r.dosage!, if (r.frequency != null) r.frequency!].join(' · '),
+                                style: const TextStyle(color: Color(0xFF4C616C), fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      done
+                          ? const Text(
+                              'Added',
+                              style: TextStyle(
+                                color: Color(0xFF2E7D32),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            )
+                          : FilledButton(
+                              onPressed: () => _openEntry(i),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF0066CC),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                shape: const StadiumBorder(),
+                                textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                              ),
+                              child: const Text('Add'),
+                            ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: Text(
+              _added.length == widget.results.length ? 'Done' : 'Skip Remaining',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── OCR loading overlay ───────────────────────────────────────────────────────
+
+class _OcrLoadingDialog extends StatelessWidget {
+  const _OcrLoadingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false, // prevent back-button dismissal during OCR
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, 8)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 56,
+                height: 56,
+                child: CircularProgressIndicator(
+                  strokeWidth: 4,
+                  color: Color(0xFF0066CC),
+                ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 20),
+              const Text(
+                'Analysing medication…',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0B3A70),
+                ),
+              ),
+              const SizedBox(height: 8),
               Text(
-                entries[i].text,
-                style: const TextStyle(fontStyle: FontStyle.italic, height: 1.4, color: Color(0xFF2A1700)),
+                'Reading label and fetching drug info',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
               ),
             ],
-        ],
+          ),
+        ),
       ),
     );
   }

@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/di/providers.dart';
-import '../../shared/models/api_models.dart' show EmergencyContact;
+import '../../shared/models/api_models.dart' show EmergencyContact, EmergencyContactsUpdate;
+import 'contact_edit_sheet.dart';
 
-class ProfilePage extends ConsumerWidget {
+class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
+  @override
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends ConsumerState<ProfilePage> {
   static String _initials(String name) {
     final t = name.trim();
     if (t.isEmpty) return '?';
@@ -19,8 +26,93 @@ class ProfilePage extends ConsumerWidget {
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
 
+  Future<void> _saveContacts(BuildContext context, List<EmergencyContact> newContacts) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _SavingDialog(),
+    );
+    try {
+      await ref.read(apiServiceProvider).updateEmergencyContacts(
+        EmergencyContactsUpdate(contacts: newContacts),
+      );
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // dismiss loading
+      ref.invalidate(dashboardControllerProvider);
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // dismiss loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save: $e'),
+          backgroundColor: const Color(0xFFBA1A1A),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openAddContact(BuildContext context, List<EmergencyContact> existing) async {
+    final result = await showModalBottomSheet<EmergencyContact>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const ContactEditSheet(),
+    );
+    if (result == null || !context.mounted) return;
+    await _saveContacts(context, [...existing, result]);
+  }
+
+  Future<void> _openEditContact(
+    BuildContext context,
+    List<EmergencyContact> existing,
+    int index,
+  ) async {
+    final result = await showModalBottomSheet<EmergencyContact>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ContactEditSheet(initialContact: existing[index]),
+    );
+    if (result == null || !context.mounted) return;
+    final updated = [...existing];
+    updated[index] = result;
+    await _saveContacts(context, updated);
+  }
+
+  Future<void> _deleteContact(
+    BuildContext context,
+    List<EmergencyContact> existing,
+    int index,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Contact'),
+        content: Text('Remove ${existing[index].name} from emergency contacts?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: Color(0xFFBA1A1A)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final updated = [...existing]..removeAt(index);
+    await _saveContacts(context, updated);
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final dash = ref.watch(dashboardControllerProvider);
     final userProfile = ref.watch(profileControllerProvider).profile;
     final displayName = userProfile.name.trim().isEmpty ? 'MediAgent User' : userProfile.name.trim();
@@ -30,6 +122,23 @@ class ProfilePage extends ConsumerWidget {
       backgroundColor: const Color(0xFFF7F9FC),
       body: dash.when(
         data: (data) {
+          // Build contact rows with index
+          final contactRows = <Widget>[];
+          for (var i = 0; i < data.contacts.length; i++) {
+            final c = data.contacts[i];
+            contactRows.add(_ContactRow(
+              contact: c,
+              onCall: () async {
+                final uri = Uri(scheme: 'tel', path: c.phone);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              },
+              onEdit: () => _openEditContact(context, data.contacts, i),
+              onDelete: () => _deleteContact(context, data.contacts, i),
+            ));
+          }
+
           return CustomScrollView(
             slivers: [
               SliverAppBar(
@@ -102,19 +211,10 @@ class ProfilePage extends ConsumerWidget {
                               style: TextStyle(color: Color(0xFF414753)),
                             )
                           else
-                            ...data.contacts.map((c) => _ContactRow(
-                                  contact: c,
-                                  onCall: () => ref
-                                      .read(bridgeProvider)
-                                      .emergencyCall(number: c.phone),
-                                )),
+                            ...contactRows,
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Add contact flow coming soon.')),
-                              );
-                            },
+                            onPressed: () => _openAddContact(context, data.contacts),
                             icon: const Icon(Icons.add_circle_outline),
                             label: const Text('Add New Emergency Contact'),
                           ),
@@ -228,10 +328,17 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _ContactRow extends StatelessWidget {
-  const _ContactRow({required this.contact, required this.onCall});
+  const _ContactRow({
+    required this.contact,
+    required this.onCall,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final EmergencyContact contact;
   final Future<void> Function() onCall;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -248,7 +355,7 @@ class _ContactRow extends StatelessWidget {
             CircleAvatar(
               backgroundColor: const Color(0xFFCFE6F2),
               child: Text(
-                ProfilePage._initials(contact.name),
+                _ProfilePageState._initials(contact.name),
                 style: const TextStyle(
                     fontWeight: FontWeight.w800, color: Color(0xFF526772)),
               ),
@@ -269,13 +376,31 @@ class _ContactRow extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton.filled(
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFF0066CC),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: onCall,
-              icon: const Icon(Icons.call),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFF0066CC),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: onCall,
+                  icon: const Icon(Icons.call),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined),
+                  color: const Color(0xFF4C616C),
+                  tooltip: 'Edit',
+                ),
+                IconButton(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline),
+                  color: const Color(0xFFBA1A1A),
+                  tooltip: 'Remove',
+                ),
+              ],
             ),
           ],
         ),
@@ -284,28 +409,35 @@ class _ContactRow extends StatelessWidget {
   }
 }
 
-
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
+class _SavingDialog extends StatelessWidget {
+  const _SavingDialog();
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Row(
+    return PopScope(
+      canPop: false,
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: const Color(0xFF4C616C)),
-              const SizedBox(width: 14),
-              Expanded(child: Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500))),
-              const Icon(Icons.chevron_right, color: Color(0xFFC1C6D5)),
+              CircularProgressIndicator(color: Color(0xFF0066CC)),
+              SizedBox(height: 20),
+              Text(
+                'Saving…',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0B3A70),
+                ),
+              ),
             ],
           ),
         ),
@@ -313,3 +445,4 @@ class _SettingsRow extends StatelessWidget {
     );
   }
 }
+

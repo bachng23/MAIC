@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
+import '../../../apple_native/apple_native_bridge.dart';
 import '../../../core/notifications/medication_notification_service.dart';
 import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
@@ -14,16 +16,23 @@ class ScanController extends ChangeNotifier {
   final MediGuardApiService _api;
   final MedicationNotificationService _notifications;
   final MedicationIntakeController _intake;
+  final _bridge = AppleNativeBridge();
 
   bool isLoading = false;
   String? error;
-  OCRScanResult? scanResult;
+
+  /// All medications detected from the last scan (may contain multiple).
+  List<OCRScanResult> scanResults = [];
+
+  /// Convenience: first result (backwards compat with single-med review flow).
+  OCRScanResult? get scanResult => scanResults.isNotEmpty ? scanResults.first : null;
+
   DrugInfo? drugInfo;
   MedicationOut? createdMedication;
   String? _pendingSourceImageUrl;
 
   void clearForNewEntry() {
-    scanResult = null;
+    scanResults = [];
     drugInfo = null;
     createdMedication = null;
     error = null;
@@ -31,25 +40,56 @@ class ScanController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// OCR only — image is sent as base64 JSON to `POST /api/v1/medications/scan` (backend uploads to storage).
+  /// OCR flow:
+  ///   1. Try on-device Apple Vision OCR (iOS 17+) → fast, free, no server round-trip for extraction.
+  ///   2. If Vision fails / not available, fall back to sending base64 image to backend vision model.
+  ///   Either way, the raw text or image is sent to `POST /api/v1/medications/scan` which returns
+  ///   a list of [OCRScanResult] (one per medication detected on the prescription).
   Future<void> runOcrFromImage(File imageFile) async {
     isLoading = true;
     error = null;
-    scanResult = null;
+    scanResults = [];
     drugInfo = null;
     createdMedication = null;
     _pendingSourceImageUrl = null;
     notifyListeners();
     try {
-      final bytes = await imageFile.readAsBytes();
-      final imageBase64 = base64Encode(bytes);
-      final scanned = await _api.scanMedication(OCRScanRequest(imageBase64: imageBase64));
-      scanResult = scanned;
-      _pendingSourceImageUrl = scanned.sourceImageUrl;
+      OCRScanRequest request;
 
+      // ── Step 1: try on-device Apple Vision text extraction ──────────────
+      try {
+        final ocrResult = await _bridge.recognizeTextFromFile(imageFile.path);
+        if (ocrResult.rawText.trim().isNotEmpty) {
+          // Good extraction — send text only (no image upload needed).
+          request = OCRScanRequest(ocrText: ocrResult.rawText);
+        } else {
+          throw const FormatException('Vision returned empty text');
+        }
+      } on MissingPluginException {
+        // Channel not available (iOS < 17 or simulator) — fall back to image.
+        request = await _buildImageRequest(imageFile);
+      } on PlatformException {
+        // Vision OCR error — fall back to image.
+        request = await _buildImageRequest(imageFile);
+      } catch (_) {
+        // Any other error (empty text, etc.) — fall back to image.
+        request = await _buildImageRequest(imageFile);
+      }
+
+      // ── Step 2: parse via backend (vision or text-only model) ───────────
+      final results = await _api.scanMedication(request);
+      if (results.isEmpty) {
+        error = 'No medications detected. Try a clearer photo.';
+        return;
+      }
+      scanResults = results;
+      _pendingSourceImageUrl = results.first.sourceImageUrl;
+
+      // Fetch drug info for the first (primary) medication only.
+      final first = results.first;
       try {
         drugInfo = await _api.fetchDrugInfo(
-          DrugInfoRequest(drugName: scanned.name, drugNameZh: scanned.nameZh),
+          DrugInfoRequest(drugName: first.name, drugNameZh: first.nameZh),
         );
       } catch (_) {
         drugInfo = null;
@@ -60,6 +100,12 @@ class ScanController extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Build an [OCRScanRequest] with base64-encoded image bytes.
+  Future<OCRScanRequest> _buildImageRequest(File imageFile) async {
+    final bytes = await imageFile.readAsBytes();
+    return OCRScanRequest(imageBase64: base64Encode(bytes));
   }
 
   Future<void> saveMedicationWithSchedule({
@@ -129,7 +175,7 @@ class ScanController extends ChangeNotifier {
       );
 
       _pendingSourceImageUrl = null;
-      scanResult = null;
+      scanResults = [];
       drugInfo = null;
       createdMedication = null;
     } catch (e) {
@@ -172,13 +218,15 @@ class ScanController extends ChangeNotifier {
     notifyListeners();
     try {
       final response = await _api.logMedicationTaken(MedicationTakenRequest(scheduleId: scheduleId));
-      await _notifications.scheduleMonitoringReminder(
+      // Confirm intake first — notification scheduling must NOT block this.
+      _intake.confirmIntake(scheduleId: scheduleId, medicationId: medicationId);
+      // Schedule monitoring reminder in background; ignore notification errors.
+      _notifications.scheduleMonitoringReminder(
         logId: response.logId,
         scheduleId: scheduleId,
         scheduledTime: DateTime.now().toUtc().toIso8601String(),
         monitoringEnd: response.monitoringEnd,
-      );
-      _intake.confirmIntake(scheduleId: scheduleId, medicationId: medicationId);
+      ).catchError((_) {}); // fire-and-forget
       return true;
     } catch (e) {
       error = e.toString();
