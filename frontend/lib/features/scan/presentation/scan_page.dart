@@ -11,6 +11,8 @@ import '../../shared/models/api_models.dart';
 import 'med_blue_tokens.dart';
 import 'medication_entry_sheet.dart';
 import 'medication_intake_controller.dart';
+import 'multi_med_review_sheet.dart';
+import 'scanner_screen.dart';
 
 class _UpcomingDose {
   const _UpcomingDose({
@@ -76,9 +78,6 @@ class ScanPage extends ConsumerStatefulWidget {
 }
 
 class _ScanPageState extends ConsumerState<ScanPage> {
-  File? _pickedImage;
-  bool _scannerMode = false;
-
   void _openManualMedicationEntry() {
     ref.read(scanControllerProvider).clearForNewEntry();
     showModalBottomSheet<void>(
@@ -90,13 +89,58 @@ class _ScanPageState extends ConsumerState<ScanPage> {
     );
   }
 
-  Future<void> _runOcrAndOpenReview() async {
-    if (_pickedImage == null) return;
-    await ref.read(scanControllerProvider).runOcrFromImage(_pickedImage!);
+  /// Opens the full-screen [ScannerScreen] (covers bottom nav via root navigator).
+  /// Returns the captured [File], or `null` if the user backed out.
+  /// Returns the string `'gallery'` if the user chose "Upload from Photos".
+  Future<void> _openScanner() async {
+    final result = await Navigator.of(context, rootNavigator: true).push<Object>(
+      MaterialPageRoute(builder: (_) => const ScannerScreen()),
+    );
+
+    if (!mounted) return;
+
+    if (result == 'gallery') {
+      // User tapped "Upload from Photos" inside the scanner
+      await _pickFromGallery();
+    } else if (result is File) {
+      await _runOcrAndOpenReview(result);
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null || !mounted) return;
+    await _runOcrAndOpenReview(File(picked.path));
+  }
+
+  Future<void> _runOcrAndOpenReview(File imageFile) async {
+    await ref.read(scanControllerProvider).runOcrFromImage(imageFile);
     if (!mounted) return;
     final s = ref.read(scanControllerProvider);
     if (s.error != null || s.scanResult == null) return;
     if (!mounted) return;
+
+    void onDone() {
+      if (mounted) setState(() {});
+    }
+
+    // Multiple medications → list review sheet
+    if (s.scanResults != null && s.scanResults!.length > 1) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => MultiMedReviewSheet(
+          medications: s.scanResults!,
+          onAllSaved: onDone,
+        ),
+      );
+      return;
+    }
+
+    // Single medication → entry sheet
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -105,24 +149,9 @@ class _ScanPageState extends ConsumerState<ScanPage> {
       builder: (ctx) => MedicationEntrySheet(
         initialOcr: s.scanResult,
         initialDrugInfo: s.drugInfo,
-        onSaved: () {
-          if (!mounted) return;
-          setState(() {
-            _scannerMode = false;
-            _pickedImage = null;
-          });
-        },
+        onSaved: onDone,
       ),
     );
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source, imageQuality: 75);
-    if (picked == null) return;
-    setState(() {
-      _pickedImage = File(picked.path);
-    });
   }
 
   @override
@@ -131,176 +160,6 @@ class _ScanPageState extends ConsumerState<ScanPage> {
     final dash = ref.watch(dashboardControllerProvider);
     final intake = ref.watch(medicationIntakeControllerProvider);
     final bottomInset = MediaQuery.paddingOf(context).bottom + 88;
-
-    if (_scannerMode) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF7F9FC),
-        body: Column(
-          children: [
-            _ScannerAppBar(onBack: () => setState(() => _scannerMode = false)),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                children: [
-                  const Text(
-                    'Align the medication label inside the frame',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, height: 1.2),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Make sure the label is clear and well lit. Hold your phone steady while scanning.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF414753), height: 1.4),
-                  ),
-                  const SizedBox(height: 20),
-                  AspectRatio(
-                    aspectRatio: 3 / 4,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ColoredBox(
-                            color: Colors.black,
-                            child: _pickedImage == null
-                                ? const Center(
-                                    child: Icon(Icons.photo_camera_outlined, color: Colors.white54, size: 56),
-                                  )
-                                : Image.file(_pickedImage!, fit: BoxFit.cover),
-                          ),
-                          Container(color: Colors.black.withValues(alpha: 0.45)),
-                          Center(
-                            child: FractionallySizedBox(
-                              widthFactor: 0.88,
-                              child: AspectRatio(
-                                aspectRatio: 4 / 3,
-                                child: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(22),
-                                        border: Border.all(color: const Color(0xFFA6C8FF), width: 2),
-                                      ),
-                                    ),
-                                    _cornerBracket(top: true, left: true),
-                                    _cornerBracket(top: true, left: false),
-                                    _cornerBracket(top: false, left: true),
-                                    _cornerBracket(top: false, left: false),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            top: 16,
-                            right: 16,
-                            child: IconButton.filledTonal(
-                              style: IconButton.styleFrom(
-                                backgroundColor: Colors.white.withValues(alpha: 0.15),
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () {},
-                              icon: const Icon(Icons.flashlight_on_outlined),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF2F4F7),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0x1AC1C6D5)),
-                    ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.info_outline, color: Color(0xFF0066CC)),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'We will identify the medication name and prepare reminder details automatically.',
-                            style: TextStyle(color: Color(0xFF414753), fontWeight: FontWeight.w500, height: 1.35),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: bottomInset + 120),
-                ],
-              ),
-            ),
-          ],
-        ),
-        bottomSheet: Container(
-          padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.paddingOf(context).bottom + 16),
-          decoration: BoxDecoration(
-            color: const Color(0xE6F7F9FC),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: scan.isLoading ? null : () => _pickImage(ImageSource.camera),
-                  icon: const Icon(Icons.photo_camera),
-                  label: const Text('Scan Now'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(56),
-                    backgroundColor: const Color(0xFF0066CC),
-                    foregroundColor: Colors.white,
-                    shape: const StadiumBorder(),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: scan.isLoading ? null : () => _pickImage(ImageSource.gallery),
-                icon: const Icon(Icons.image_outlined, color: Color(0xFF0066CC)),
-                label: const Text('Upload from Photos', style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: scan.isLoading || _pickedImage == null ? null : _runOcrAndOpenReview,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
-                  backgroundColor: MedBlueTokens.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-                ),
-                child: Text(scan.isLoading ? 'Scanning…' : 'Run OCR & review'),
-              ),
-              if (scan.error != null) ...[
-                const SizedBox(height: 8),
-                Text(scan.error!, style: const TextStyle(color: Color(0xFFBA1A1A), fontWeight: FontWeight.w600)),
-              ],
-              if (scan.scanResult != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Detected: ${scan.scanResult!.name}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FB),
@@ -376,7 +235,7 @@ class _ScanPageState extends ConsumerState<ScanPage> {
                     ),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: () => setState(() => _scannerMode = true),
+                      onPressed: _openScanner,
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: MedBlueTokens.primary,
@@ -518,79 +377,7 @@ class _ScanPageState extends ConsumerState<ScanPage> {
   }
 }
 
-class _ScannerAppBar extends StatelessWidget {
-  const _ScannerAppBar({required this.onBack});
 
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xCCF7F9FC),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: onBack,
-                icon: const Icon(Icons.arrow_back, color: Color(0xFF0B3A70)),
-              ),
-              const Expanded(
-                child: Text(
-                  'Scan Medication',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0B3A70)),
-                ),
-              ),
-              const SizedBox(width: 48),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CornerPainter extends StatelessWidget {
-  const _CornerPainter({required this.top, required this.left});
-
-  final bool top;
-  final bool left;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: top ? -1 : null,
-      bottom: !top ? -1 : null,
-      left: left ? -1 : null,
-      right: !left ? -1 : null,
-      child: SizedBox(
-        width: 28,
-        height: 28,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(
-              top: top ? const BorderSide(color: Color(0xFF004E9F), width: 4) : BorderSide.none,
-              bottom: !top ? const BorderSide(color: Color(0xFF004E9F), width: 4) : BorderSide.none,
-              left: left ? const BorderSide(color: Color(0xFF004E9F), width: 4) : BorderSide.none,
-              right: !left ? const BorderSide(color: Color(0xFF004E9F), width: 4) : BorderSide.none,
-            ),
-            borderRadius: BorderRadius.only(
-              topLeft: top && left ? const Radius.circular(14) : Radius.zero,
-              topRight: top && !left ? const Radius.circular(14) : Radius.zero,
-              bottomLeft: !top && left ? const Radius.circular(14) : Radius.zero,
-              bottomRight: !top && !left ? const Radius.circular(14) : Radius.zero,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-Widget _cornerBracket({required bool top, required bool left}) => _CornerPainter(top: top, left: left);
 
 class _GlassDoseCard extends StatelessWidget {
   const _GlassDoseCard({

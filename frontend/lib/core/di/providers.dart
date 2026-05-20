@@ -2,7 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../apple_native/apple_native_bridge.dart';
 import '../../features/auth/presentation/auth_controller.dart';
+import '../../features/health/data/monitoring_service.dart';
 import '../../features/health/presentation/health_controller.dart';
 import '../../features/scan/presentation/medication_intake_controller.dart';
 import '../../features/scan/presentation/scan_controller.dart';
@@ -88,6 +90,17 @@ final scanControllerProvider = ChangeNotifierProvider<ScanController>((ref) {
     ref.watch(apiServiceProvider),
     ref.watch(medicationNotificationServiceProvider),
     ref.watch(medicationIntakeControllerProvider),
+  );
+});
+
+final bridgeProvider = Provider<AppleNativeBridge>((_) => AppleNativeBridge());
+
+/// Singleton monitoring service — survives tab navigation.
+/// Starts polling Apple Watch HealthKit data every 3 min after medication taken.
+final monitoringServiceProvider = ChangeNotifierProvider<MonitoringService>((ref) {
+  return MonitoringService(
+    ref.watch(bridgeProvider),
+    ref.watch(apiServiceProvider),
   );
 });
 

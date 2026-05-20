@@ -30,12 +30,6 @@ class HomePage extends ConsumerWidget {
             Text('MediAgent', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0B3A70))),
           ],
         ),
-        actions: [
-          IconButton(
-            onPressed: () => context.go('/profile'),
-            icon: const Icon(Icons.notifications_none_rounded, color: Color(0xFF0B3A70)),
-          ),
-        ],
       ),
       body: state.when(
         data: (data) {
@@ -63,8 +57,6 @@ class HomePage extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _ScanActionButton(onPressed: () => context.go('/scan')),
                 const SizedBox(height: 16),
-                const _HeroCard(),
-                const SizedBox(height: 16),
                 if (wide)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,43 +83,7 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-class _HeroCard extends StatelessWidget {
-  const _HeroCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0066CC), Color(0xFF004E9F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Your health,\nsynchronized.',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 30,
-              height: 1.1,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Daily adherence is key to recovery.',
-            style: TextStyle(color: Color(0xCCFFFFFF), fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// ── Today's Medications ──────────────────────────────────────────────────────
 
 class _MedsCard extends StatelessWidget {
   const _MedsCard({required this.data, required this.intake});
@@ -137,6 +93,7 @@ class _MedsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final meds = data.medications.where((m) => m.isActive).take(6).toList();
+    final totalDoses = data.schedules.fold<int>(0, (s, x) => s + x.times.length);
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF2F4F6),
@@ -148,27 +105,39 @@ class _MedsCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Text(
-                'Today\'s Medications',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0x1A0066CC),
-                  borderRadius: BorderRadius.circular(999),
-                ),
+              const Expanded(
                 child: Text(
-                  '${meds.length}/${data.schedules.length} Doses',
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF0066CC)),
+                  'Today\'s Medications',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
                 ),
               ),
+              if (totalDoses > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0x1A0066CC),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$totalDoses dose${totalDoses == 1 ? '' : 's'} today',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0066CC),
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 14),
           if (meds.isEmpty)
-            const Text('No medications found.')
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No medications added yet.',
+                style: TextStyle(color: Color(0xFF757575)),
+              ),
+            )
           else
             ...meds.map(
               (med) => Padding(
@@ -179,11 +148,15 @@ class _MedsCard extends StatelessWidget {
                 ),
               ),
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           OutlinedButton.icon(
             onPressed: () => context.go('/compliance'),
-            icon: const Icon(Icons.calendar_month_outlined),
+            icon: const Icon(Icons.calendar_month_outlined, size: 18),
             label: const Text('View Full Schedule'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+              visualDensity: VisualDensity.compact,
+            ),
           ),
         ],
       ),
@@ -225,7 +198,7 @@ class _MedicationTile extends StatelessWidget {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: isTaken ? const Color(0xFF0066CC) : const Color(0xFFFEA619),
               borderRadius: BorderRadius.circular(999),
@@ -245,11 +218,18 @@ class _MedicationTile extends StatelessWidget {
   }
 }
 
-class _HealthSnapshotCard extends StatelessWidget {
+// ── Health Snapshot (live from monitoring service) ───────────────────────────
+
+class _HealthSnapshotCard extends ConsumerWidget {
   const _HealthSnapshotCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final monitor = ref.watch(monitoringServiceProvider);
+    final snap = monitor.latestSnapshot;
+    final hr = snap?.heartRate;
+    final spo2 = snap?.spo2;
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF2F4F6),
@@ -259,36 +239,90 @@ class _HealthSnapshotCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Health Monitoring', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21)),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Health Monitoring',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
+                ),
+              ),
+              if (monitor.isMonitoring)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 600),
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF00C853),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 14),
-          const _VitalsRow(
+          _VitalsRow(
             icon: Icons.favorite,
-            iconColor: Color(0xFFB9161C),
+            iconColor: const Color(0xFFB9161C),
             label: 'Heart Rate',
-            value: '72',
+            value: hr != null ? hr.round().toString() : '—',
             unit: 'BPM',
           ),
           const SizedBox(height: 10),
-          const _VitalsRow(
+          _VitalsRow(
             icon: Icons.water_drop,
-            iconColor: Color(0xFF0066CC),
-            label: 'SpO2',
-            value: '98',
+            iconColor: const Color(0xFF0066CC),
+            label: 'Blood O₂',
+            value: spo2 != null ? spo2.round().toString() : '—',
             unit: '%',
           ),
           const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0x330066CC),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: const EdgeInsets.all(10),
-            child: const Row(
-              children: [
-                Icon(Icons.verified_user, size: 16, color: Color(0xFF004A99)),
-                SizedBox(width: 8),
-                Text('All vitals normal', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF004A99))),
-              ],
+          GestureDetector(
+            onTap: () => context.go('/health'),
+            child: Container(
+              decoration: BoxDecoration(
+                color: monitor.isMonitoring
+                    ? const Color(0x1400C853)
+                    : const Color(0x0F000000),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    monitor.isMonitoring
+                        ? Icons.monitor_heart
+                        : Icons.watch_outlined,
+                    size: 16,
+                    color: monitor.isMonitoring
+                        ? const Color(0xFF00A846)
+                        : const Color(0xFF9E9E9E),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      monitor.isMonitoring
+                          ? 'Live from Apple Watch'
+                          : snap != null
+                              ? 'Last reading shown'
+                              : 'No data yet — confirm a dose to start',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                        color: monitor.isMonitoring
+                            ? const Color(0xFF00A846)
+                            : const Color(0xFF757575),
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 16,
+                    color: monitor.isMonitoring
+                        ? const Color(0xFF00A846)
+                        : const Color(0xFFBDBDBD),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -314,31 +348,56 @@ class _VitalsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasData = value != '—';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label.toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF3E4946))),
+            Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF3E4946),
+              ),
+            ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(value, style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: iconColor)),
-                const SizedBox(width: 4),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 7),
-                  child: Text(unit, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF3E4946))),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                    color: hasData ? iconColor : const Color(0xFFBDBDBD),
+                  ),
                 ),
+                if (hasData) ...[
+                  const SizedBox(width: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 7),
+                    child: Text(
+                      unit,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF3E4946),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],
         ),
-        Icon(icon, color: iconColor, size: 28),
+        Icon(icon, color: hasData ? iconColor : const Color(0xFFBDBDBD), size: 28),
       ],
     );
   }
 }
+
+// ── Scan CTA ─────────────────────────────────────────────────────────────────
 
 class _ScanActionButton extends StatelessWidget {
   const _ScanActionButton({required this.onPressed});
@@ -359,6 +418,8 @@ class _ScanActionButton extends StatelessWidget {
     );
   }
 }
+
+// ── Weekly Report ─────────────────────────────────────────────────────────────
 
 class _WeeklyReportCard extends StatelessWidget {
   const _WeeklyReportCard({required this.data});
@@ -385,11 +446,24 @@ class _WeeklyReportCard extends StatelessWidget {
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Weekly Report', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21)),
-                  Text('Excellent consistency', style: TextStyle(fontSize: 12, color: Color(0xFF3E4946))),
+                  Text(
+                    'Weekly Report',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
+                  ),
+                  Text(
+                    'Medication adherence',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF3E4946)),
+                  ),
                 ],
               ),
-              Text('$percent%', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF0066CC))),
+              Text(
+                '$percent%',
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0066CC),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -404,8 +478,11 @@ class _WeeklyReportCard extends StatelessWidget {
                     child: Container(
                       height: 60 * bars[i],
                       decoration: BoxDecoration(
-                        color: i == 3 ? const Color(0xFF0066CC) : const Color(0xFFA6C8FF),
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                        color: i == 3
+                            ? const Color(0xFF0066CC)
+                            : const Color(0xFFA6C8FF),
+                        borderRadius:
+                            const BorderRadius.vertical(top: Radius.circular(4)),
                       ),
                     ),
                   ),
@@ -416,13 +493,24 @@ class _WeeklyReportCard extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: labels.map((e) => Text(e, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF3E4946)))).toList(),
+            children: labels
+                .map((e) => Text(
+                      e,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF3E4946),
+                      ),
+                    ))
+                .toList(),
           ),
         ],
       ),
     );
   }
 }
+
+// ── Emergency Card ────────────────────────────────────────────────────────────
 
 class _EmergencyCard extends StatelessWidget {
   const _EmergencyCard({required this.data});
@@ -440,27 +528,34 @@ class _EmergencyCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Emergency', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21)),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: shown
-                .map((c) => Chip(
-                      backgroundColor: Colors.white,
-                      label: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    ))
-                .toList(),
+          const Text(
+            'Emergency',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            shown.isEmpty
+                ? 'No contacts added yet'
+                : shown.map((c) => c.name).join(', '),
+            style: const TextStyle(
+              color: Color(0xFF3E4946),
+              fontSize: 13,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: () => context.go('/health'),
             icon: const Icon(Icons.emergency_share),
-            label: const Text('Send Alert'),
+            label: const Text('Emergency Alerts'),
             style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(54),
+              minimumSize: const Size.fromHeight(48),
               backgroundColor: const Color(0xFFB9161C),
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],

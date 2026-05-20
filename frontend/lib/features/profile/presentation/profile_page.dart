@@ -102,7 +102,12 @@ class ProfilePage extends ConsumerWidget {
                               style: TextStyle(color: Color(0xFF414753)),
                             )
                           else
-                            ...data.contacts.map((c) => _ContactRow(contact: c)),
+                            ...data.contacts.map((c) => _ContactRow(
+                                  contact: c,
+                                  onCall: () => ref
+                                      .read(bridgeProvider)
+                                      .emergencyCall(number: c.phone),
+                                )),
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
                             onPressed: () {
@@ -117,20 +122,32 @@ class ProfilePage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: EdgeInsets.only(left: 4, bottom: 12),
-                        child: Text(
-                          'Health Profile',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    _SectionCard(
+                      title: 'Health Profile',
+                      icon: Icons.favorite_border_rounded,
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F9FB),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Color(0xFF9E9E9E), size: 18),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Blood type, allergies, and conditions will be available in a future update.',
+                                style: TextStyle(
+                                  color: Color(0xFF757575),
+                                  fontSize: 13,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    _HealthProfileGrid(
-                      bloodType: userProfile.displayOrDash(userProfile.bloodType),
-                      allergies: userProfile.displayOrDash(userProfile.allergies),
-                      conditions: userProfile.displayOrDash(userProfile.medicalConditions),
                     ),
                     const SizedBox(height: 24),
                     SizedBox(
@@ -211,9 +228,10 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _ContactRow extends StatelessWidget {
-  const _ContactRow({required this.contact});
+  const _ContactRow({required this.contact, required this.onCall});
 
   final EmergencyContact contact;
+  final Future<void> Function() onCall;
 
   @override
   Widget build(BuildContext context) {
@@ -231,7 +249,8 @@ class _ContactRow extends StatelessWidget {
               backgroundColor: const Color(0xFFCFE6F2),
               child: Text(
                 ProfilePage._initials(contact.name),
-                style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF526772)),
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, color: Color(0xFF526772)),
               ),
             ),
             const SizedBox(width: 12),
@@ -239,16 +258,23 @@ class _ContactRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(contact.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17)),
-                  Text('${contact.relation} • ${contact.phone}', style: const TextStyle(color: Color(0xFF4C616C))),
+                  Text(contact.name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 17)),
+                  Text(
+                    '${contact.relation} · ${contact.phone}',
+                    style: const TextStyle(
+                        color: Color(0xFF4C616C), fontSize: 13),
+                  ),
                 ],
               ),
             ),
             IconButton.filled(
-              style: IconButton.styleFrom(backgroundColor: const Color(0xFF0066CC), foregroundColor: Colors.white),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Call ${contact.phone}')));
-              },
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFF0066CC),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: onCall,
               icon: const Icon(Icons.call),
             ),
           ],
@@ -258,104 +284,31 @@ class _ContactRow extends StatelessWidget {
   }
 }
 
-class _HealthProfileGrid extends StatelessWidget {
-  const _HealthProfileGrid({
-    required this.bloodType,
-    required this.allergies,
-    required this.conditions,
-  });
 
-  final String bloodType;
-  final String allergies;
-  final String conditions;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: _HealthTile(
-            icon: Icons.bloodtype,
-            iconBg: const Color(0xFFD7E3FF),
-            label: 'Blood Type',
-            value: bloodType,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _HealthTile(
-            icon: Icons.coronavirus_outlined,
-            iconBg: const Color(0xFFFFDAD6),
-            iconColor: const Color(0xFFBA1A1A),
-            label: 'Allergies',
-            value: allergies,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _HealthTile(
-            icon: Icons.monitor_heart_outlined,
-            iconBg: const Color(0xFFFFDFA0),
-            iconColor: const Color(0xFF684C00),
-            label: 'Conditions',
-            value: conditions,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HealthTile extends StatelessWidget {
-  const _HealthTile({
-    required this.icon,
-    required this.iconBg,
-    required this.label,
-    required this.value,
-    this.iconColor,
-  });
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({required this.icon, required this.label, required this.onTap});
 
   final IconData icon;
-  final Color iconBg;
-  final Color? iconColor;
   final String label;
-  final String value;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0A191C1E), blurRadius: 16, offset: Offset(0, 6)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: iconBg,
-            child: Icon(icon, size: 18, color: iconColor ?? const Color(0xFF004E9F)),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            children: [
+              Icon(icon, color: const Color(0xFF4C616C)),
+              const SizedBox(width: 14),
+              Expanded(child: Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500))),
+              const Icon(Icons.chevron_right, color: Color(0xFFC1C6D5)),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFF4C616C), fontWeight: FontWeight.w600, fontSize: 12),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, height: 1.2),
-          ),
-        ],
+        ),
       ),
     );
   }

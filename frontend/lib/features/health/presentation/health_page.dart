@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
+import '../data/monitoring_service.dart';
 
 class HealthPage extends ConsumerStatefulWidget {
   const HealthPage({super.key});
@@ -304,30 +305,129 @@ class _EmergencyAlertButton extends StatelessWidget {
   const _EmergencyAlertButton({required this.onPressed});
   final VoidCallback? onPressed;
 
+  Future<void> _handleEmergency(BuildContext context, WidgetRef ref) async {
+    final MonitoringService monitor = ref.read(monitoringServiceProvider);
+    final logId = monitor.activeLogId ?? '';
+
+    // 1. Report to backend (even without active session — user may feel unwell anytime)
+    final health = ref.read(healthControllerProvider);
+    if (logId.isNotEmpty) {
+      await health.reportEmergency(logId);
+    }
+
+    if (!context.mounted) return;
+
+    // 2. Get emergency contacts from cached dashboard
+    final dashAsync = ref.read(dashboardControllerProvider);
+    final contacts = dashAsync.valueOrNull?.contacts ?? [];
+
+    if (contacts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFFB9161C),
+          content: Text('No emergency contacts found. Please add contacts in Settings.'),
+        ),
+      );
+      return;
+    }
+
+    // 3. Build message
+    final medName = monitor.activeMedicationName;
+    final message = medName != null
+        ? '🚨 [MediGuard] I need help! I took $medName and am feeling unwell. Please contact me immediately.'
+        : '🚨 [MediGuard] I need help! I am feeling unwell. Please contact me immediately.';
+
+    // 4. Send iMessage to all contacts (opens Messages app)
+    final bridge = ref.read(bridgeProvider);
+    try {
+      await bridge.sendIMessage(
+        contacts: contacts.map((c) => {'phone': c.phone}).toList(),
+        message: message,
+      );
+    } catch (_) {
+      // Messages app may not be available — continue to call dialog
+    }
+
+    if (!context.mounted) return;
+
+    // 5. Ask if user wants to call the first contact
+    final firstContact = contacts.first;
+    final shouldCall = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Call for Help?', style: TextStyle(fontWeight: FontWeight.w800)),
+        content: Text(
+          'Do you want to call ${firstContact.name} (${firstContact.phone}) right now?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB9161C)),
+            child: const Text('Yes, Call Now'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldCall == true && context.mounted) {
+      try {
+        await bridge.emergencyCall(number: firstContact.phone);
+      } catch (_) {}
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFFB9161C),
+          content: Text('Emergency alert sent!'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        FilledButton.icon(
-          onPressed: onPressed,
-          icon: const Icon(Icons.emergency, size: 32),
-          label: const Text(
-            'Send Emergency Alert',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22),
-          ),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(double.infinity, 88),
-            backgroundColor: const Color(0xFFB9161C),
-            foregroundColor: Colors.white,
-            shape: const StadiumBorder(),
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'This immediately reports an emergency anomaly.',
-          style: TextStyle(color: Color(0xFF6D7A76), fontWeight: FontWeight.w600),
-        ),
-      ],
+    return Consumer(
+      builder: (ctx, ref, _) {
+        final health = ref.watch(healthControllerProvider);
+        return Column(
+          children: [
+            FilledButton.icon(
+              onPressed: health.isLoading
+                  ? null
+                  : () => _handleEmergency(ctx, ref),
+              icon: health.isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                    )
+                  : const Icon(Icons.emergency_rounded, size: 28),
+              label: const Text(
+                'Send Emergency Alert',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+              ),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 80),
+                backgroundColor: const Color(0xFFB9161C),
+                foregroundColor: Colors.white,
+                shape: const StadiumBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Tap if you feel unwell — sends iMessage & offers to call your emergency contacts.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF757575), fontSize: 12),
+            ),
+          ],
+        );
+      },
     );
   }
 }

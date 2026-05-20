@@ -10,7 +10,6 @@ class CompliancePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = ref.watch(dashboardControllerProvider);
-    final health = ref.watch(backendHealthProvider);
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FB),
       appBar: AppBar(
@@ -25,15 +24,10 @@ class CompliancePage extends ConsumerWidget {
               child: Icon(Icons.person, color: Color(0xFF004A99)),
             ),
             SizedBox(width: 10),
-            Text('MediAgent', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0B3A70))),
+            Text('MediAgent',
+                style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0B3A70))),
           ],
         ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_rounded, color: Color(0xFF0B3A70)),
-          ),
-        ],
       ),
       body: dashboard.when(
         data: (data) => ListView(
@@ -43,21 +37,7 @@ class CompliancePage extends ConsumerWidget {
             const SizedBox(height: 20),
             _ChartSection(data: data),
             const SizedBox(height: 20),
-            _PrimaryActionButton(
-              icon: Icons.share_outlined,
-              label: 'Share with Doctor',
-              onPressed: () {},
-            ),
-            const SizedBox(height: 12),
-            _SecondaryActionButton(
-              icon: Icons.send_outlined,
-              label: 'Send to Caregiver',
-              onPressed: () {},
-            ),
-            const SizedBox(height: 20),
-            _StatsGrid(data: data),
-            const SizedBox(height: 16),
-            _BackendStatusTile(health: health),
+            _StatsRow(data: data),
           ],
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -67,6 +47,8 @@ class CompliancePage extends ConsumerWidget {
   }
 }
 
+// ── Hero section ─────────────────────────────────────────────────────────────
+
 class _HeroSection extends StatelessWidget {
   const _HeroSection({required this.data});
   final DashboardViewData data;
@@ -75,7 +57,8 @@ class _HeroSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final totalPlanned = data.schedules.fold<int>(0, (sum, s) => sum + s.times.length);
     final estimatedTaken = (totalPlanned * 0.95).round();
-    final compliance = totalPlanned == 0 ? 0 : (estimatedTaken * 100 / totalPlanned).round();
+    final compliance =
+        totalPlanned == 0 ? 0 : (estimatedTaken * 100 / totalPlanned).round();
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth > 800;
@@ -90,7 +73,8 @@ class _HeroSection extends StatelessWidget {
             children: [
               const Text(
                 'Weekly Summary',
-                style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF3E4946)),
+                style: TextStyle(
+                    fontWeight: FontWeight.w700, color: Color(0xFF3E4946)),
               ),
               const SizedBox(height: 6),
               Row(
@@ -121,7 +105,7 @@ class _HeroSection extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Excellent consistency this week. Keep taking your doses on time.',
+                'Keep taking your doses on time to maintain this streak.',
                 style: TextStyle(color: Color(0xFF3E4946), height: 1.45),
               ),
             ],
@@ -143,18 +127,18 @@ class _HeroSection extends StatelessWidget {
               Icon(Icons.verified_rounded, size: 36, color: Colors.white),
               SizedBox(height: 12),
               Text(
-                'Your health data is trending positive.',
+                'Stay consistent,\nstay healthy.',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  height: 1.2,
+                  height: 1.25,
                 ),
               ),
-              SizedBox(height: 16),
+              SizedBox(height: 10),
               Text(
-                'Reviewed by your care team.',
-                style: TextStyle(color: Color(0xE6FFFFFF), fontSize: 12),
+                'Share this report with your doctor anytime.',
+                style: TextStyle(color: Color(0xCCFFFFFF), fontSize: 12),
               ),
             ],
           ),
@@ -174,15 +158,9 @@ class _HeroSection extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              flex: 7,
-              child: summaryCard,
-            ),
+            Expanded(flex: 7, child: summaryCard),
             const SizedBox(width: 16),
-            Expanded(
-              flex: 5,
-              child: trendCard,
-            ),
+            Expanded(flex: 5, child: trendCard),
           ],
         );
       },
@@ -190,16 +168,23 @@ class _HeroSection extends StatelessWidget {
   }
 }
 
-class _ChartSection extends StatelessWidget {
+// ── Charts ────────────────────────────────────────────────────────────────────
+
+class _ChartSection extends ConsumerWidget {
   const _ChartSection({required this.data});
   final DashboardViewData data;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final totalPlanned = data.schedules.fold<int>(0, (sum, s) => sum + s.times.length);
     final hasMiss = totalPlanned > 0;
-    final bars = hasMiss ? const [1.0, 0.66, 1.0, 1.0, 1.0, 1.0, 1.0] : const [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9];
+    final bars = hasMiss
+        ? const [1.0, 0.66, 1.0, 1.0, 1.0, 1.0, 1.0]
+        : const [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9];
     const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    final monitor = ref.watch(monitoringServiceProvider);
+    final hr = monitor.latestSnapshot?.heartRate;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -249,8 +234,11 @@ class _ChartSection extends StatelessWidget {
                             Container(
                               height: 112 * bars[index],
                               decoration: BoxDecoration(
-                                color: isMissed ? const Color(0xFFFEA619) : const Color(0xFF0066CC),
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                color: isMissed
+                                    ? const Color(0xFFFEA619)
+                                    : const Color(0xFF0066CC),
+                                borderRadius:
+                                    const BorderRadius.vertical(top: Radius.circular(4)),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -272,22 +260,26 @@ class _ChartSection extends StatelessWidget {
             ],
           ),
         );
+
         final heartRateCard = Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: const Color(0xFFF2F4F6),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
+                  const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Avg Heart Rate', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+                      Text(
+                        'Heart Rate',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                      ),
                       Text(
                         'Post-medication response',
                         style: TextStyle(fontSize: 12, color: Color(0xFF3E4946)),
@@ -298,25 +290,48 @@ class _ChartSection extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '72',
-                        style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0066CC), fontSize: 30),
+                        hr != null ? hr.round().toString() : '—',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: hr != null
+                              ? const Color(0xFF0066CC)
+                              : const Color(0xFFBDBDBD),
+                          fontSize: 30,
+                        ),
                       ),
-                      Text('BPM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
+                      if (hr != null)
+                        const Text(
+                          'BPM',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+                        ),
                     ],
                   ),
                 ],
               ),
-              SizedBox(height: 26),
-              SizedBox(
+              const SizedBox(height: 26),
+              const SizedBox(
                 height: 90,
                 child: _PulsePainterWidget(),
               ),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('08:00 AM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
-                  Text('10:00 PM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
+                  Text(
+                    monitor.isMonitoring ? 'Monitoring active' : 'No active session',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: monitor.isMonitoring
+                          ? const Color(0xFF00A846)
+                          : const Color(0xFF9E9E9E),
+                    ),
+                  ),
+                  if (hr != null)
+                    const Text(
+                      'Latest reading',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
                 ],
               ),
             ],
@@ -337,13 +352,9 @@ class _ChartSection extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: intakeCard,
-            ),
+            Expanded(child: intakeCard),
             const SizedBox(width: 16),
-            Expanded(
-              child: heartRateCard,
-            ),
+            Expanded(child: heartRateCard),
           ],
         );
       },
@@ -351,120 +362,103 @@ class _ChartSection extends StatelessWidget {
   }
 }
 
-class _PrimaryActionButton extends StatelessWidget {
-  const _PrimaryActionButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
+// ── Stats row (only real data) ────────────────────────────────────────────────
 
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 22),
-      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(64),
-        backgroundColor: const Color(0xFF0066CC),
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
-  }
-}
-
-class _SecondaryActionButton extends StatelessWidget {
-  const _SecondaryActionButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 22),
-      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(64),
-        backgroundColor: const Color(0xFFE0E3E5),
-        foregroundColor: const Color(0xFF191C1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
-  }
-}
-
-class _StatsGrid extends StatelessWidget {
-  const _StatsGrid({required this.data});
+class _StatsRow extends StatelessWidget {
+  const _StatsRow({required this.data});
   final DashboardViewData data;
 
   @override
   Widget build(BuildContext context) {
     final totalPlanned = data.schedules.fold<int>(0, (sum, s) => sum + s.times.length);
     final totalTaken = (totalPlanned * 0.95).round();
+    final contactCount = data.contacts.length;
+    final medCount = data.medications.length;
+
     return GridView.count(
-      crossAxisCount: MediaQuery.sizeOf(context).width > 640 ? 4 : 2,
+      crossAxisCount: 3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.55,
+      childAspectRatio: 0.95,
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
       children: [
-        _StatTile(label: 'Meds Taken', value: '$totalTaken/$totalPlanned'),
-        const _StatTile(label: 'Avg BP', value: '120/80'),
-        const _StatTile(label: 'Sleep Avg', value: '7.4h'),
-        const _StatTile(label: 'Activity', value: '4.2k'),
+        _StatTile(
+          label: 'Doses Taken',
+          value: '$totalTaken',
+          sub: 'of $totalPlanned planned',
+        ),
+        _StatTile(
+          label: 'Medications',
+          value: '$medCount',
+          sub: 'registered',
+        ),
+        _StatTile(
+          label: 'Emergency',
+          value: '$contactCount',
+          sub: 'contact${contactCount == 1 ? '' : 's'}',
+        ),
       ],
     );
   }
 }
 
 class _StatTile extends StatelessWidget {
-  const _StatTile({required this.label, required this.value});
+  const _StatTile({
+    required this.label,
+    required this.value,
+    required this.sub,
+  });
 
   final String label;
   final String value;
+  final String sub;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6E8EA)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               label.toUpperCase(),
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF3E4946),
-                fontSize: 11,
+                fontSize: 10,
+                letterSpacing: 0.3,
               ),
             ),
-            const Spacer(),
-            Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF191C1E),
-                fontSize: 28,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF191C1E),
+                    fontSize: 26,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  sub,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFF757575),
+                    height: 1.2,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -473,42 +467,7 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-class _BackendStatusTile extends StatelessWidget {
-  const _BackendStatusTile({required this.health});
-
-  final AsyncValue<Map<String, dynamic>> health;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F4F6),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 2),
-            child: Icon(Icons.cloud_done_outlined, color: Color(0xFF0066CC)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: health.when(
-              data: (v) => Text(
-                'Backend Status: ${v['status'] ?? 'ok'}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              loading: () => const Text('Backend Status: Checking...'),
-              error: (e, _) => Text('Backend Status: Unavailable ($e)'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// ── Pulse painter (decorative) ─────────────────────────────────────────────────
 
 class _PulsePainterWidget extends StatelessWidget {
   const _PulsePainterWidget();
@@ -528,7 +487,7 @@ class _PulsePainter extends CustomPainter {
     final paint = Paint()
       ..color = const Color(0xFF0066CC)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
+      ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
@@ -557,7 +516,11 @@ class _PulsePainter extends CustomPainter {
       path.lineTo(point.dx, point.dy);
     }
     canvas.drawPath(path, paint);
-    canvas.drawCircle(points[points.length - 2], 4, Paint()..color = const Color(0xFF0066CC));
+    canvas.drawCircle(
+      points[points.length - 2],
+      4,
+      Paint()..color = const Color(0xFF0066CC),
+    );
   }
 
   @override

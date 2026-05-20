@@ -14,6 +14,9 @@ class AppleNativeBridge {
   static const MethodChannel _coreMlChannel = MethodChannel(
     'com.mediguard/core_ml',
   );
+  static const MethodChannel _emergencyChannel = MethodChannel(
+    'com.mediguard/emergency',
+  );
 
   Future<OcrResult> recognizeTextFromFile(String imagePath) async {
     final json = await _invokeMap(
@@ -103,6 +106,44 @@ class AppleNativeBridge {
       },
     );
     return PredictAnomalyResponse.fromJson(json);
+  }
+
+  /// Opens iMessage pre-filled with [contacts] phone numbers and [message].
+  /// Each contact is a map with key `phone`.
+  Future<bool> sendIMessage({
+    required List<Map<String, String>> contacts,
+    required String message,
+  }) async {
+    try {
+      final result = await _emergencyChannel.invokeMethod<bool>(
+        'sendIMessage',
+        {'contacts': contacts, 'message': message},
+      );
+      return result ?? false;
+    } on PlatformException catch (e) {
+      throw AppleNativeBridgeException(
+        code: e.code,
+        message: e.message ?? 'sendIMessage failed',
+        details: e.details,
+      );
+    }
+  }
+
+  /// Opens the Phone app to dial [number]. Defaults to 119 if empty.
+  Future<bool> emergencyCall({String number = '119'}) async {
+    try {
+      final result = await _emergencyChannel.invokeMethod<bool>(
+        'emergencyCall',
+        {'number': number},
+      );
+      return result ?? false;
+    } on PlatformException catch (e) {
+      throw AppleNativeBridgeException(
+        code: e.code,
+        message: e.message ?? 'emergencyCall failed',
+        details: e.details,
+      );
+    }
   }
 
   Future<Map<Object?, Object?>> _invokeMap(

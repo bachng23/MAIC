@@ -224,6 +224,39 @@ class MediGuardApiService {
     );
   }
 
+  Future<void> updateEmergencyContacts(EmergencyContactsUpdate payload) async {
+    try {
+      final token = await getToken();
+      if (token == null) throw Exception('Please log in first.');
+      await _dio.put<Map<String, dynamic>>(
+        '/api/v1/emergency/contacts',
+        data: payload.toJson(),
+        options: Options(headers: {'Authorization': 'Bearer $token'}, contentType: 'application/json'),
+      );
+    } on DioException catch (e) {
+      throw Exception(_dioFailureMessage(e));
+    }
+  }
+
+  Future<List<EmergencyContact>> fetchEmergencyContacts() async {
+    try {
+      final token = await getToken();
+      if (token == null) return [];
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/emergency/contacts',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return ApiResponse<List<EmergencyContact>>.fromJson(
+        res.data!,
+        (json) => (json! as List)
+            .map((e) => EmergencyContact.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      ).data ?? [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<Map<String, dynamic>> healthCheck() async {
     final response = await _dio.get<Map<String, dynamic>>('/health');
     return response.data ?? <String, dynamic>{};
