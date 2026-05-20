@@ -54,26 +54,29 @@ class ScanController extends ChangeNotifier {
     _pendingSourceImageUrl = null;
     notifyListeners();
     try {
-      OCRScanRequest request;
+      // Always encode the image — needed as fallback for older backend versions
+      // and as the vision-model input when on-device OCR is unavailable.
+      final bytes = await imageFile.readAsBytes();
+      final imageBase64 = base64Encode(bytes);
 
       // ── Step 1: try on-device Apple Vision text extraction ──────────────
+      // If successful, include ocr_text alongside image_base64 so the new
+      // backend can use the faster text-only path while the old backend
+      // (which ignores unknown fields) falls back to image_base64.
+      OCRScanRequest request;
       try {
         final ocrResult = await _bridge.recognizeTextFromFile(imageFile.path);
         if (ocrResult.rawText.trim().isNotEmpty) {
-          // Good extraction — send text only (no image upload needed).
-          request = OCRScanRequest(ocrText: ocrResult.rawText);
+          request = OCRScanRequest(imageBase64: imageBase64, ocrText: ocrResult.rawText);
         } else {
           throw const FormatException('Vision returned empty text');
         }
       } on MissingPluginException {
-        // Channel not available (iOS < 17 or simulator) — fall back to image.
-        request = await _buildImageRequest(imageFile);
+        request = OCRScanRequest(imageBase64: imageBase64);
       } on PlatformException {
-        // Vision OCR error — fall back to image.
-        request = await _buildImageRequest(imageFile);
+        request = OCRScanRequest(imageBase64: imageBase64);
       } catch (_) {
-        // Any other error (empty text, etc.) — fall back to image.
-        request = await _buildImageRequest(imageFile);
+        request = OCRScanRequest(imageBase64: imageBase64);
       }
 
       // ── Step 2: parse via backend (vision or text-only model) ───────────
@@ -102,11 +105,6 @@ class ScanController extends ChangeNotifier {
     }
   }
 
-  /// Build an [OCRScanRequest] with base64-encoded image bytes.
-  Future<OCRScanRequest> _buildImageRequest(File imageFile) async {
-    final bytes = await imageFile.readAsBytes();
-    return OCRScanRequest(imageBase64: base64Encode(bytes));
-  }
 
   Future<void> saveMedicationWithSchedule({
     required String name,
