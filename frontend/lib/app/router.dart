@@ -25,7 +25,9 @@ String _maskPhoneForDisplay(String raw) {
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authControllerProvider);
+  // Use ref.read so the GoRouter instance is created once and never recreated.
+  // refreshListenable handles re-evaluating redirect() on auth state changes.
+  final auth = ref.read(authControllerProvider);
   return GoRouter(
     initialLocation: '/welcome',
     refreshListenable: auth,

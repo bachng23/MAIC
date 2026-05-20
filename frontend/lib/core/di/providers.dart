@@ -39,11 +39,15 @@ Dio _buildDio(Ref ref) {
   final refreshDio = Dio(BaseOptions(
     baseUrl: _defaultBaseUrl,
     headers: const {'Accept': 'application/json'},
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
   ));
 
   final dio = Dio(BaseOptions(
     baseUrl: _defaultBaseUrl,
     headers: const {'Accept': 'application/json'},
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 15),
   ));
 
   Future<String?> doRefresh() async {
