@@ -30,49 +30,55 @@ void invalidateUserScopedProviders(Ref ref) {
   ref.read(medicationNotificationServiceProvider).cancelAllMedicationReminders();
 }
 
-final dioProvider = Provider<Dio>((ref) {
+// Named function with explicit return type breaks the type-inference circularity
+// that would occur if the lambda directly referenced authControllerProvider.
+Dio _buildDio(Ref ref) {
   final tokenStorage = ref.watch(tokenStorageProvider);
 
-  // Bare Dio used only for token refresh — no interceptors to avoid circular calls.
+  // Bare Dio used only for token refresh — no auth interceptor to avoid re-entry.
   final refreshDio = Dio(BaseOptions(
     baseUrl: _defaultBaseUrl,
     headers: const {'Accept': 'application/json'},
   ));
 
-  final dio = Dio(
-    BaseOptions(
-      baseUrl: _defaultBaseUrl,
-      headers: const {'Accept': 'application/json'},
-    ),
-  );
+  final dio = Dio(BaseOptions(
+    baseUrl: _defaultBaseUrl,
+    headers: const {'Accept': 'application/json'},
+  ));
+
+  Future<String?> doRefresh() async {
+    final refreshToken = await tokenStorage.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return null;
+
+    final response = await refreshDio.post<Map<String, dynamic>>(
+      '/api/v1/auth/refresh',
+      data: {'refresh_token': refreshToken},
+      options: Options(contentType: 'application/json'),
+    );
+
+    final data = (response.data?['data'] as Map?)?.cast<String, dynamic>();
+    final newAccess = data?['access_token'] as String?;
+    final newRefresh = data?['refresh_token'] as String?;
+
+    if (newAccess != null) {
+      await tokenStorage.writeToken(newAccess);
+      if (newRefresh != null) await tokenStorage.writeRefreshToken(newRefresh);
+    }
+    return newAccess;
+  }
+
+  void doLogout() => ref.read(authControllerProvider).logout();
 
   dio.interceptors.add(AuthInterceptor(
     tokenStorage,
-    onRefreshToken: () async {
-      final refreshToken = await tokenStorage.readRefreshToken();
-      if (refreshToken == null || refreshToken.isEmpty) return null;
-
-      final response = await refreshDio.post<Map<String, dynamic>>(
-        '/api/v1/auth/refresh',
-        data: {'refresh_token': refreshToken},
-        options: Options(contentType: 'application/json'),
-      );
-
-      final data = (response.data?['data'] as Map?)?.cast<String, dynamic>();
-      final newAccess = data?['access_token'] as String?;
-      final newRefresh = data?['refresh_token'] as String?;
-
-      if (newAccess != null) {
-        await tokenStorage.writeToken(newAccess);
-        if (newRefresh != null) await tokenStorage.writeRefreshToken(newRefresh);
-      }
-      return newAccess;
-    },
-    onUnauthorized: () => ref.read(authControllerProvider).logout(),
+    onRefreshToken: doRefresh,
+    onUnauthorized: doLogout,
   ));
 
   return dio;
-});
+}
+
+final dioProvider = Provider<Dio>(_buildDio);
 
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
   return const FlutterSecureStorage();
