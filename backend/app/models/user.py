@@ -14,6 +14,10 @@ class UserLogin(BaseModel):
     password: str
 
 
+class TokenRefresh(BaseModel):
+    refresh_token: str
+
+
 class APNSTokenUpdate(BaseModel):
     apns_token: str
 

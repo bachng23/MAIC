@@ -41,7 +41,9 @@ class AuthController extends ChangeNotifier {
     try {
       final data = await _api.login(UserLogin(email: email, password: password));
       final token = data['access_token'] as String;
+      final refreshToken = data['refresh_token'] as String?;
       await _api.setToken(token);
+      if (refreshToken != null) await _tokenStorage.writeRefreshToken(refreshToken);
       isAuthenticated = true;
       _onSessionChanged?.call();
       return true;
@@ -82,6 +84,7 @@ class AuthController extends ChangeNotifier {
 
   Future<void> logout() async {
     await _api.clearToken();
+    await _tokenStorage.clearRefreshToken();
     isAuthenticated = false;
     _onSessionChanged?.call();
     notifyListeners();

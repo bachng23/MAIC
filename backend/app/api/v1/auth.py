@@ -4,7 +4,7 @@ from supabase_auth.errors import AuthApiError, AuthError
 from app.api.deps import get_current_user
 from app.db.client import get_supabase
 from app.models.base import APIResponse
-from app.models.user import APNSTokenUpdate, UserLogin, UserRegister
+from app.models.user import APNSTokenUpdate, TokenRefresh, UserLogin, UserRegister
 from app.services.notification_service import get_apns_status
 from app.services.rate_limiter import RateLimitRule, create_rate_limit_dependency
 
@@ -38,7 +38,10 @@ async def register(body: UserRegister, _: None = Depends(auth_write_rate_limit))
         "language": body.language,
     }).eq("id", auth_resp.user.id).execute()
 
-    return APIResponse(data={"access_token": auth_resp.session.access_token})
+    return APIResponse(data={
+        "access_token": auth_resp.session.access_token,
+        "refresh_token": auth_resp.session.refresh_token,
+    })
 
 
 @router.post("/login", response_model=APIResponse[dict])
@@ -56,7 +59,31 @@ async def login(body: UserLogin, _: None = Depends(auth_write_rate_limit)):
     if not auth_resp.user or not auth_resp.session:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    return APIResponse(data={"access_token": auth_resp.session.access_token})
+    return APIResponse(data={
+        "access_token": auth_resp.session.access_token,
+        "refresh_token": auth_resp.session.refresh_token,
+    })
+
+
+@router.post("/refresh", response_model=APIResponse[dict])
+async def refresh_token(body: TokenRefresh):
+    db = get_supabase()
+    try:
+        auth_resp = db.auth.refresh_session(body.refresh_token)
+    except AuthApiError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e.message))
+    except AuthError:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auth service unavailable")
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh failed")
+
+    if not auth_resp.session:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh failed")
+
+    return APIResponse(data={
+        "access_token": auth_resp.session.access_token,
+        "refresh_token": auth_resp.session.refresh_token,
+    })
 
 
 @router.put("/apns-token", response_model=APIResponse[None])

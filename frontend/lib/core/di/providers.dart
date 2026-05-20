@@ -31,16 +31,46 @@ void invalidateUserScopedProviders(Ref ref) {
 }
 
 final dioProvider = Provider<Dio>((ref) {
+  final tokenStorage = ref.watch(tokenStorageProvider);
+
+  // Bare Dio used only for token refresh — no interceptors to avoid circular calls.
+  final refreshDio = Dio(BaseOptions(
+    baseUrl: _defaultBaseUrl,
+    headers: const {'Accept': 'application/json'},
+  ));
+
   final dio = Dio(
     BaseOptions(
       baseUrl: _defaultBaseUrl,
       headers: const {'Accept': 'application/json'},
     ),
   );
+
   dio.interceptors.add(AuthInterceptor(
-    ref.watch(tokenStorageProvider),
+    tokenStorage,
+    onRefreshToken: () async {
+      final refreshToken = await tokenStorage.readRefreshToken();
+      if (refreshToken == null || refreshToken.isEmpty) return null;
+
+      final response = await refreshDio.post<Map<String, dynamic>>(
+        '/api/v1/auth/refresh',
+        data: {'refresh_token': refreshToken},
+        options: Options(contentType: 'application/json'),
+      );
+
+      final data = (response.data?['data'] as Map?)?.cast<String, dynamic>();
+      final newAccess = data?['access_token'] as String?;
+      final newRefresh = data?['refresh_token'] as String?;
+
+      if (newAccess != null) {
+        await tokenStorage.writeToken(newAccess);
+        if (newRefresh != null) await tokenStorage.writeRefreshToken(newRefresh);
+      }
+      return newAccess;
+    },
     onUnauthorized: () => ref.read(authControllerProvider).logout(),
   ));
+
   return dio;
 });
 
