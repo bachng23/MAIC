@@ -12,6 +12,8 @@ public enum FlutterBridgeContracts {
     public static let currentBaselineMethod = "getCurrentBaseline"
     public static let predictAnomalyMethod = "predictAnomaly"
     public static let loadModelStatusMethod = "loadModelStatus"
+    public static let sendIMessageMethod = "sendIMessage"
+    public static let emergencyCallMethod = "emergencyCall"
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
