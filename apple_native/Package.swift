@@ -18,5 +18,10 @@ let package = Package(
             name: "AppleNativeKit",
             path: "Sources/AppleNativeKit"
         ),
+        .testTarget(
+            name: "AppleNativeKitTests",
+            dependencies: ["AppleNativeKit"],
+            path: "Tests/AppleNativeKitTests"
+        ),
     ]
 )

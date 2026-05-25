@@ -15,6 +15,15 @@ class _HealthPageState extends ConsumerState<HealthPage> {
   final _logId = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Trigger an immediate read so the page shows fresh data as soon as it opens.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(monitoringServiceProvider).manualRefresh();
+    });
+  }
+
+  @override
   void dispose() {
     _logId.dispose();
     super.dispose();
@@ -50,20 +59,45 @@ class _HealthPageState extends ConsumerState<HealthPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
         children: [
-          const Row(
-            children: [
-              CircleAvatar(radius: 5, backgroundColor: Color(0xFF0066CC)),
-              SizedBox(width: 8),
-              Text(
-                'LIVE FROM APPLE WATCH',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0066CC),
-                  fontSize: 12,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ],
+          Builder(
+            builder: (_) {
+              final monitor = ref.watch(monitoringServiceProvider);
+              if (monitor.isWatchSource) {
+                return const Row(
+                  children: [
+                    CircleAvatar(radius: 5, backgroundColor: Color(0xFF0066CC)),
+                    SizedBox(width: 8),
+                    Text(
+                      '⌚ LIVE FROM APPLE WATCH',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0066CC),
+                        fontSize: 12,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                );
+              }
+              if (monitor.latestSnapshot != null) {
+                return const Row(
+                  children: [
+                    CircleAvatar(radius: 5, backgroundColor: Color(0xFF5C7B9A)),
+                    SizedBox(width: 8),
+                    Text(
+                      '📱 FROM IPHONE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF5C7B9A),
+                        fontSize: 12,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return const SizedBox.shrink();
+            },
           ),
           const SizedBox(height: 10),
           const Text('Health Monitor', style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, height: 1.05)),
@@ -105,64 +139,141 @@ class _HealthPageState extends ConsumerState<HealthPage> {
   }
 }
 
-class _VitalsGrid extends StatelessWidget {
+class _VitalsGrid extends ConsumerWidget {
   const _VitalsGrid();
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth > 760;
-        if (!wide) {
-          return const Column(
-            children: [
-              _VitalCard(
-                title: 'Heart Rate',
-                value: '72',
-                unit: 'BPM',
-                accent: Color(0xFF0066CC),
-                icon: Icons.favorite,
-                status: 'Safe Range',
-              ),
-              SizedBox(height: 12),
-              _VitalCard(
-                title: 'Blood Oxygen',
-                value: '94',
-                unit: '%',
-                accent: Color(0xFFFEA619),
-                icon: Icons.bloodtype,
-                status: 'Monitor Closely',
-              ),
-            ],
-          );
-        }
-        return const Row(
-          children: [
-            Expanded(
-              child: _VitalCard(
-                title: 'Heart Rate',
-                value: '72',
-                unit: 'BPM',
-                accent: Color(0xFF0066CC),
-                icon: Icons.favorite,
-                status: 'Safe Range',
-              ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final monitor = ref.watch(monitoringServiceProvider);
+    final snapshot = monitor.latestSnapshot;
+
+    final hrValue = snapshot?.heartRate?.round().toString() ?? '—';
+    final spo2Value = snapshot?.spo2?.round().toString() ?? '—';
+    final hrStatus = snapshot == null
+        ? 'Waiting for data'
+        : _hrStatus(snapshot.heartRate);
+    final spo2Status = snapshot == null
+        ? 'Waiting for data'
+        : _spo2Status(snapshot.spo2);
+
+    return Column(
+      children: [
+        if (!monitor.isMonitoring && snapshot == null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F4FF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFBDD3F9)),
             ),
-            SizedBox(width: 12),
-            Expanded(
-              child: _VitalCard(
-                title: 'Blood Oxygen',
-                value: '94',
-                unit: '%',
-                accent: Color(0xFFFEA619),
-                icon: Icons.bloodtype,
-                status: 'Monitor Closely',
-              ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, color: Color(0xFF0066CC), size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Confirm a dose to start Apple Watch monitoring.',
+                    style: TextStyle(color: Color(0xFF0B3A70), fontSize: 13),
+                  ),
+                ),
+              ],
             ),
-          ],
-        );
-      },
+          ),
+        if (monitor.isMonitoring)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6F2FF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF0066CC).withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const CircleAvatar(radius: 5, backgroundColor: Color(0xFF0066CC)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    monitor.activeMedicationName != null
+                        ? 'Monitoring after ${monitor.activeMedicationName} · ${MonitoringService.formatDuration(monitor.remainingSeconds)} left'
+                        : 'Monitoring active · ${MonitoringService.formatDuration(monitor.remainingSeconds)} left',
+                    style: const TextStyle(color: Color(0xFF0B3A70), fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth > 760;
+            if (!wide) {
+              return Column(
+                children: [
+                  _VitalCard(
+                    title: 'Heart Rate',
+                    value: hrValue,
+                    unit: 'BPM',
+                    accent: const Color(0xFF0066CC),
+                    icon: Icons.favorite,
+                    status: hrStatus,
+                  ),
+                  const SizedBox(height: 12),
+                  _VitalCard(
+                    title: 'Blood Oxygen',
+                    value: spo2Value,
+                    unit: '%',
+                    accent: const Color(0xFFFEA619),
+                    icon: Icons.bloodtype,
+                    status: spo2Status,
+                  ),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(
+                  child: _VitalCard(
+                    title: 'Heart Rate',
+                    value: hrValue,
+                    unit: 'BPM',
+                    accent: const Color(0xFF0066CC),
+                    icon: Icons.favorite,
+                    status: hrStatus,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _VitalCard(
+                    title: 'Blood Oxygen',
+                    value: spo2Value,
+                    unit: '%',
+                    accent: const Color(0xFFFEA619),
+                    icon: Icons.bloodtype,
+                    status: spo2Status,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
     );
+  }
+
+  static String _hrStatus(double? hr) {
+    if (hr == null) return 'No data';
+    if (hr < 60) return 'Low — check if resting';
+    if (hr <= 100) return 'Safe Range';
+    if (hr <= 120) return 'Slightly elevated';
+    return 'Elevated — monitor';
+  }
+
+  static String _spo2Status(double? spo2) {
+    if (spo2 == null) return 'No data';
+    if (spo2 >= 95) return 'Normal';
+    if (spo2 >= 90) return 'Monitor Closely';
+    return 'Low — seek help';
   }
 }
 

@@ -118,6 +118,7 @@ class _ScanPageState extends ConsumerState<ScanPage> {
       final ok = await scan.logDoseTaken(
         scheduleId: dose.scheduleId,
         medicationId: dose.medication.id,
+        medicationName: dose.medication.name,
       );
       if (ok) succeeded++;
     }
@@ -455,6 +456,7 @@ class _ScanPageState extends ConsumerState<ScanPage> {
                       final ok = await ref.read(scanControllerProvider).logDoseTaken(
                             scheduleId: doses[i].scheduleId,
                             medicationId: doses[i].medication.id,
+                            medicationName: doses[i].medication.name,
                           );
                       if (!context.mounted) return;
                       if (ok) {

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -6,16 +5,19 @@ import 'package:flutter/services.dart';
 
 import '../../../apple_native/apple_native_bridge.dart';
 import '../../../core/notifications/medication_notification_service.dart';
+import '../../health/data/monitoring_service.dart';
 import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
 import 'medication_intake_controller.dart';
+import 'prescription_parser.dart';
 
 class ScanController extends ChangeNotifier {
-  ScanController(this._api, this._notifications, this._intake);
+  ScanController(this._api, this._notifications, this._intake, this._monitoring);
 
   final MediGuardApiService _api;
   final MedicationNotificationService _notifications;
   final MedicationIntakeController _intake;
+  final MonitoringService _monitoring;
   final _bridge = AppleNativeBridge();
 
   bool isLoading = false;
@@ -40,11 +42,12 @@ class ScanController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// OCR flow:
-  ///   1. Try on-device Apple Vision OCR (iOS 17+) → fast, free, no server round-trip for extraction.
-  ///   2. If Vision fails / not available, fall back to sending base64 image to backend vision model.
-  ///   Either way, the raw text or image is sent to `POST /api/v1/medications/scan` which returns
-  ///   a list of [OCRScanResult] (one per medication detected on the prescription).
+  /// OCR flow — fully on-device, no external vision model:
+  ///   1. Apple Vision (iOS 17+) extracts raw text from the image.
+  ///   2. [parsePrescriptionText] parses the raw text into medication entries.
+  ///   3. Drug info is fetched from the backend for the first detected medication.
+  ///   If Vision is unavailable (iOS < 17 / simulator), opens the entry sheet
+  ///   with empty fields so the user can type manually.
   Future<void> runOcrFromImage(File imageFile) async {
     isLoading = true;
     error = null;
@@ -54,45 +57,38 @@ class ScanController extends ChangeNotifier {
     _pendingSourceImageUrl = null;
     notifyListeners();
     try {
-      // Always encode the image — needed as fallback for older backend versions
-      // and as the vision-model input when on-device OCR is unavailable.
-      final bytes = await imageFile.readAsBytes();
-      final imageBase64 = base64Encode(bytes);
-
-      // ── Step 1: try on-device Apple Vision text extraction ──────────────
-      // If successful, include ocr_text alongside image_base64 so the new
-      // backend can use the faster text-only path while the old backend
-      // (which ignores unknown fields) falls back to image_base64.
-      OCRScanRequest request;
+      // ── Step 1: on-device Apple Vision text extraction ──────────────────
+      String rawText;
       try {
         final ocrResult = await _bridge.recognizeTextFromFile(imageFile.path);
-        if (ocrResult.rawText.trim().isNotEmpty) {
-          request = OCRScanRequest(imageBase64: imageBase64, ocrText: ocrResult.rawText);
-        } else {
-          throw const FormatException('Vision returned empty text');
-        }
+        rawText = ocrResult.rawText.trim();
       } on MissingPluginException {
-        request = OCRScanRequest(imageBase64: imageBase64);
+        // iOS < 17 or simulator — open entry sheet with empty fields
+        rawText = '';
       } on PlatformException {
-        request = OCRScanRequest(imageBase64: imageBase64);
+        rawText = '';
       } catch (_) {
-        request = OCRScanRequest(imageBase64: imageBase64);
+        rawText = '';
       }
 
-      // ── Step 2: parse via backend (vision or text-only model) ───────────
-      final results = await _api.scanMedication(request);
+      // ── Step 2: local parse ─────────────────────────────────────────────
+      if (rawText.isEmpty) {
+        // No text extracted — return one empty result so entry sheet opens
+        scanResults = [OCRScanResult(name: '')];
+        return;
+      }
+
+      final results = parsePrescriptionText(rawText);
       if (results.isEmpty) {
-        error = 'No medications detected. Try a clearer photo.';
+        error = 'No medications detected. Try a clearer photo or enter manually.';
         return;
       }
       scanResults = results;
-      _pendingSourceImageUrl = results.first.sourceImageUrl;
 
-      // Fetch drug info for the first (primary) medication only.
-      final first = results.first;
+      // ── Step 3: fetch drug info for the first medication ────────────────
       try {
         drugInfo = await _api.fetchDrugInfo(
-          DrugInfoRequest(drugName: first.name, drugNameZh: first.nameZh),
+          DrugInfoRequest(drugName: results.first.name, drugNameZh: results.first.nameZh),
         );
       } catch (_) {
         drugInfo = null;
@@ -112,6 +108,7 @@ class ScanController extends ChangeNotifier {
     String? dosage,
     String? notes,
     required List<String> times,
+    List<int>? daysOfWeek,
   }) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
@@ -162,7 +159,11 @@ class ScanController extends ChangeNotifier {
       );
 
       final schedule = await _api.createSchedule(
-        ScheduleCreate(medicationId: med.id, times: times),
+        ScheduleCreate(
+          medicationId: med.id,
+          times: times,
+          daysOfWeek: daysOfWeek,
+        ),
       );
 
       await _notifications.requestPermissions();
@@ -205,6 +206,7 @@ class ScanController extends ChangeNotifier {
   Future<bool> logDoseTaken({
     required String scheduleId,
     required String medicationId,
+    String? medicationName,
   }) async {
     if (scheduleId.isEmpty) {
       error = 'Missing schedule.';
@@ -218,11 +220,19 @@ class ScanController extends ChangeNotifier {
       final response = await _api.logMedicationTaken(MedicationTakenRequest(scheduleId: scheduleId));
       // Confirm intake first — notification scheduling must NOT block this.
       _intake.confirmIntake(scheduleId: scheduleId, medicationId: medicationId);
+      final now = DateTime.now();
+      // Start HealthKit monitoring window; fire-and-forget, don't block intake confirm.
+      _monitoring.startMonitoring(
+        logId: response.logId,
+        start: now,
+        end: response.monitoringEnd,
+        medicationName: medicationName,
+      ).catchError((_) {});
       // Schedule monitoring reminder in background; ignore notification errors.
       _notifications.scheduleMonitoringReminder(
         logId: response.logId,
         scheduleId: scheduleId,
-        scheduledTime: DateTime.now().toUtc().toIso8601String(),
+        scheduledTime: now.toUtc().toIso8601String(),
         monitoringEnd: response.monitoringEnd,
       ).catchError((_) {}); // fire-and-forget
       return true;

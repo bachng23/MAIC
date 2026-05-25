@@ -15,9 +15,13 @@ final class AppleNativeRuntime {
 
     private init() {
         let baselineStore = BaselineStore()
+        let anomalyPredictor = AnomalyPredictor(baselineStore: baselineStore)
         self.baselineStore = baselineStore
-        self.healthMonitoringService = HealthMonitoringService(baselineStore: baselineStore)
-        self.anomalyPredictor = AnomalyPredictor(baselineStore: baselineStore)
+        self.anomalyPredictor = anomalyPredictor
+        self.healthMonitoringService = HealthMonitoringService(
+            baselineStore: baselineStore,
+            anomalyPredictor: anomalyPredictor
+        )
         self.visionOCRService = VisionOCRService()
     }
 }

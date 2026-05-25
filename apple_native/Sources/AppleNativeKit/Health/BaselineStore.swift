@@ -136,6 +136,13 @@ public actor BaselineStore {
         return latestDate < staleCutoff ? .stale : .ready
     }
 
+    /// Test-only helper — bypasses minimum sample requirement.
+    #if DEBUG
+    public func setTestBaseline(_ baseline: PersonalBaseline) {
+        self.cachedBaseline = baseline
+    }
+    #endif
+
     private func summarize(values: [Double]) -> HealthSignalBaseline? {
         guard !values.isEmpty else { return nil }
 

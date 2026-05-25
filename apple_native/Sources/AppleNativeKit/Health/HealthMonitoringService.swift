@@ -2,19 +2,27 @@ import Foundation
 #if canImport(HealthKit)
 import HealthKit
 #endif
+#if canImport(UserNotifications)
+import UserNotifications
+#endif
 
 @available(macOS 13.0, iOS 17.0, watchOS 10.0, *)
 public final class HealthMonitoringService {
     private let state: MonitoringRuntimeState
     private let baselineStore: BaselineStore
     private let pollingIntervalNanoseconds: UInt64
+    private let anomalyPredictor: AnomalyPredictor?
+
+    private var observersRegistered = false
 
     public init(
         baselineStore: BaselineStore = BaselineStore(),
-        pollingIntervalNanoseconds: UInt64 = 60_000_000_000
+        anomalyPredictor: AnomalyPredictor? = nil,
+        pollingIntervalNanoseconds: UInt64 = 30_000_000_000
     ) {
         self.state = MonitoringRuntimeState()
         self.baselineStore = baselineStore
+        self.anomalyPredictor = anomalyPredictor
         self.pollingIntervalNanoseconds = pollingIntervalNanoseconds
     }
 
@@ -28,9 +36,82 @@ public final class HealthMonitoringService {
         let quantityTypes = Set(Self.requiredQuantityTypes())
         try await requestAuthorization(healthStore: healthStore, quantityTypes: quantityTypes)
         await state.setHealthStore(healthStore)
+
+        // Register observer queries only once — re-registering creates duplicate callbacks.
+        if !observersRegistered {
+            observersRegistered = true
+            registerObservers(healthStore: healthStore, quantityTypes: quantityTypes)
+        }
         #else
         throw HealthMonitoringError.healthKitUnavailable
         #endif
+    }
+
+    #if canImport(HealthKit)
+    private func registerObservers(healthStore: HKHealthStore, quantityTypes: Set<HKQuantityType>) {
+        // Enable background delivery so iOS wakes the app even in the background.
+        for type in quantityTypes {
+            healthStore.enableBackgroundDelivery(for: type, frequency: .immediate) { _, _ in }
+        }
+
+        for type in quantityTypes {
+            // completionHandler MUST be called — if omitted, iOS stops delivering updates.
+            let query = HKObserverQuery(sampleType: type, predicate: nil) { [weak self] _, completionHandler, _ in
+                guard let self else { completionHandler(); return }
+                Task {
+                    if let store = await self.state.currentHealthStore() as? HKHealthStore,
+                       let snapshot = try? await self.fetchLatestSnapshot(healthStore: store, at: Date()) {
+                        await self.state.record(snapshot)
+                        // Run anomaly prediction immediately — no Dart poll delay.
+                        let logId = await self.state.activeLogId()
+                        if let predictor = self.anomalyPredictor, let logId {
+                            let session = await self.state.currentSession()
+                            let drugCategory = session?.window.medicationCategory
+                            if let prediction = try? await predictor.predict(
+                                from: snapshot, medicationLogID: logId, drugCategory: drugCategory
+                            ), prediction.anomalyLevel >= 1, prediction.confidence >= 0.6 {
+                                Self.fireAnomalyNotification(prediction: prediction, snapshot: snapshot)
+                            }
+                        }
+                    }
+                    completionHandler()
+                }
+            }
+            healthStore.execute(query)
+        }
+    }
+    #endif
+
+    private static func fireAnomalyNotification(prediction: AnomalyPrediction, snapshot: HealthSnapshot) {
+        #if canImport(UserNotifications)
+        let content = UNMutableNotificationContent()
+        let isCritical = prediction.anomalyLevel >= 2
+        content.title = isCritical ? "🚨 Critical health alert" : "⚠️ Health warning"
+        content.body = buildAlertBody(prediction: prediction, snapshot: snapshot)
+        content.sound = .default
+        content.interruptionLevel = isCritical ? .timeSensitive : .active
+        let request = UNNotificationRequest(
+            identifier: "anomaly_\(UUID().uuidString)",
+            content: content,
+            trigger: nil  // fire immediately
+        )
+        UNUserNotificationCenter.current().add(request)
+        #endif
+    }
+
+    private static func buildAlertBody(prediction: AnomalyPrediction, snapshot: HealthSnapshot) -> String {
+        switch prediction.anomalyType {
+        case "high_hr":
+            let hr = snapshot.heartRate.map { "\(Int($0)) BPM" } ?? "elevated"
+            return "Heart rate is \(hr) — unusually high. Check how you're feeling."
+        case "low_spo2":
+            let spo2 = snapshot.spo2.map { "\(Int($0))%" } ?? "low"
+            return "Blood oxygen is \(spo2) — below normal. Take a breath and check in."
+        case "irregular_hrv":
+            return "Heart rate variability is irregular. Your body may be under stress."
+        default:
+            return "Multiple vital signs look unusual. Check how you're feeling."
+        }
     }
 
     public func startMonitoring(window: MonitoringWindow) async throws {
@@ -58,7 +139,16 @@ public final class HealthMonitoringService {
     }
 
     public func latestSnapshot() async -> HealthSnapshot? {
-        await state.latestSnapshot()
+        #if canImport(HealthKit)
+        // Always do a live HealthKit read so the caller gets fresh data immediately.
+        // Falls back to the in-memory cached value if the health store isn't ready.
+        if let store = await state.currentHealthStore() as? HKHealthStore,
+           let fresh = try? await fetchLatestSnapshot(healthStore: store, at: Date()) {
+            await state.record(fresh)
+            return fresh
+        }
+        #endif
+        return await state.latestSnapshot()
     }
 
     public func currentSession() async -> MonitoringSession? {
@@ -353,6 +443,9 @@ private actor MonitoringRuntimeState {
         }
         return healthStore
     }
+
+    func currentHealthStore() -> Any? { healthStore }
+    func activeLogId() -> String? { session?.window.logID }
 
     func beginSession(_ session: MonitoringSession) {
         monitoringTask?.cancel()

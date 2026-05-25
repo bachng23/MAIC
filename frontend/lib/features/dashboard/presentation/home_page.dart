@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/di/providers.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../scan/presentation/medication_intake_controller.dart';
 import '../../shared/data/mediguard_api_service.dart';
 import '../../shared/models/api_models.dart';
@@ -92,6 +93,7 @@ class _MedsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final meds = data.medications.where((m) => m.isActive).take(6).toList();
     final totalDoses = data.schedules.fold<int>(0, (s, x) => s + x.times.length);
     return Container(
@@ -105,10 +107,10 @@ class _MedsCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Today\'s Medications',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
+                  l10n.todaysMedications,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
                 ),
               ),
               if (totalDoses > 0)
@@ -119,7 +121,7 @@ class _MedsCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    '$totalDoses dose${totalDoses == 1 ? '' : 's'} today',
+                    l10n.dosesToday(totalDoses),
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -131,11 +133,11 @@ class _MedsCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           if (meds.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                'No medications added yet.',
-                style: TextStyle(color: Color(0xFF757575)),
+                l10n.noMedicationsAdded,
+                style: const TextStyle(color: Color(0xFF757575)),
               ),
             )
           else
@@ -152,7 +154,7 @@ class _MedsCard extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: () => context.go('/compliance'),
             icon: const Icon(Icons.calendar_month_outlined, size: 18),
-            label: const Text('View Full Schedule'),
+            label: Text(l10n.viewFullSchedule),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(44),
               visualDensity: VisualDensity.compact,
@@ -225,6 +227,7 @@ class _HealthSnapshotCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final monitor = ref.watch(monitoringServiceProvider);
     final snap = monitor.latestSnapshot;
     final hr = snap?.heartRate;
@@ -241,10 +244,10 @@ class _HealthSnapshotCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Health Monitoring',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
+                  l10n.healthMonitoring,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
                 ),
               ),
               if (monitor.isMonitoring)
@@ -263,7 +266,7 @@ class _HealthSnapshotCard extends ConsumerWidget {
           _VitalsRow(
             icon: Icons.favorite,
             iconColor: const Color(0xFFB9161C),
-            label: 'Heart Rate',
+            label: l10n.heartRate,
             value: hr != null ? hr.round().toString() : '—',
             unit: 'BPM',
           ),
@@ -271,7 +274,7 @@ class _HealthSnapshotCard extends ConsumerWidget {
           _VitalsRow(
             icon: Icons.water_drop,
             iconColor: const Color(0xFF0066CC),
-            label: 'Blood O₂',
+            label: l10n.bloodOxygen,
             value: spo2 != null ? spo2.round().toString() : '—',
             unit: '%',
           ),
@@ -301,10 +304,10 @@ class _HealthSnapshotCard extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       monitor.isMonitoring
-                          ? 'Live from Apple Watch'
+                          ? l10n.liveFromAppleWatch
                           : snap != null
-                              ? 'Last reading shown'
-                              : 'No data yet — confirm a dose to start',
+                              ? l10n.lastReadingShown
+                              : l10n.noDataYet,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 12,
@@ -405,10 +408,11 @@ class _ScanActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return OutlinedButton.icon(
       onPressed: onPressed,
       icon: const Icon(Icons.qr_code_scanner),
-      label: const Text('Scan New Medication'),
+      label: Text(l10n.scanMedication),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(58),
         foregroundColor: const Color(0xFF0066CC),
@@ -427,6 +431,7 @@ class _WeeklyReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final total = data.schedules.fold<int>(0, (sum, s) => sum + s.times.length);
     final percent = total == 0 ? 0 : ((total * 0.94) * 100 / total).round();
     const bars = [0.8, 0.95, 0.6, 1.0, 0.85, 0.9, 0.4];
@@ -443,16 +448,16 @@ class _WeeklyReportCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Weekly Report',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
+                    l10n.weeklyReport,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
                   ),
                   Text(
-                    'Medication adherence',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF3E4946)),
+                    l10n.medicationAdherence,
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF3E4946)),
                   ),
                 ],
               ),
@@ -518,6 +523,7 @@ class _EmergencyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final shown = data.contacts.take(3).toList();
     return Container(
       decoration: BoxDecoration(
@@ -528,14 +534,14 @@ class _EmergencyCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Emergency',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
+          Text(
+            l10n.emergency,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 21),
           ),
           const SizedBox(height: 4),
           Text(
             shown.isEmpty
-                ? 'No contacts added yet'
+                ? l10n.noContactsAdded
                 : shown.map((c) => c.name).join(', '),
             style: const TextStyle(
               color: Color(0xFF3E4946),
@@ -548,7 +554,7 @@ class _EmergencyCard extends StatelessWidget {
           FilledButton.icon(
             onPressed: () => context.go('/health'),
             icon: const Icon(Icons.emergency_share),
-            label: const Text('Emergency Alerts'),
+            label: Text(l10n.emergencyAlerts),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
               backgroundColor: const Color(0xFFB9161C),

@@ -47,6 +47,9 @@ dependencies:
   timezone: ^0.11.0
   flutter_timezone: ^5.0.2
   url_launcher: ^6.3.1
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.1
 
 dev_dependencies:
   flutter_test:
@@ -60,6 +63,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.7.1
   json_serializable: ^6.11.1
+  mocktail: ^0.3.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -71,6 +75,7 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  generate: true
 
   # To add assets to your application, add an assets section, like this:
   # assets:

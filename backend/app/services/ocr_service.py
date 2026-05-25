@@ -10,14 +10,14 @@ from app.db.client import get_supabase
 from app.models.medication import OCRScanResult
 
 # ---------------------------------------------------------------------------
-# Model selection
-#   Primary  : Gemini 2.0 Flash — best free vision model for Chinese/English
-#   Fallback : Qwen 2.5-VL — tuned for Chinese medical text
-#   Text-only: Gemini Flash 1.5 — cheap text-only parsing after on-device OCR
+# Model selection — only IDs confirmed available on OpenRouter free tier
+#   Vision primary : baidu/qianfan-ocr-fast  — strong on Chinese pharmacy labels
+#   Vision fallback: nvidia/nemotron-nano-12b — multimodal fallback
+#   Text-only      : google/gemma-3-12b-it   — fast text parser (no vision needed)
 # ---------------------------------------------------------------------------
-_VISION_PRIMARY  = "google/gemini-2.0-flash-exp:free"
-_VISION_FALLBACK = "qwen/qwen2.5-vl-7b-instruct:free"
-_TEXT_MODEL      = "google/gemini-flash-1.5:free"
+_VISION_PRIMARY  = "baidu/qianfan-ocr-fast:free"
+_VISION_FALLBACK = "nvidia/nemotron-nano-12b-v2-vl:free"
+_TEXT_MODEL      = "google/gemma-3-12b-it:free"
 
 _BUCKET = "medication-images"
 

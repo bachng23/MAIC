@@ -1,14 +1,15 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:frontend/app/app.dart';
 
 void main() {
-  testWidgets('MediAgentApp mounts', (WidgetTester tester) async {
+  testWidgets('MediAgentApp renders without crashing', (tester) async {
     await tester.pumpWidget(
       const ProviderScope(child: MediAgentApp()),
     );
-
-    expect(find.byType(MediAgentApp), findsOneWidget);
+    // App renders the router scaffold — just verify no exceptions thrown.
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

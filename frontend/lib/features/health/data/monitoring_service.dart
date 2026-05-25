@@ -13,7 +13,7 @@ import '../../shared/models/api_models.dart';
 ///  1. User confirms intake → [startMonitoring] called with log_id + window
 ///  2. Immediately reads HealthKit snapshot (Apple Watch data via HealthKit sync)
 ///  3. Runs Core ML anomaly prediction on each snapshot
-///  4. Every [pollInterval] (default 3 min), repeats steps 2–3
+///  4. Every [pollInterval], repeats steps 2–3
 ///  5. Auto-reports anomalies to backend (max 1 per 10 min to avoid spam)
 ///  6. Auto-sends iMessage to emergency contacts on anomaly detection
 ///  7. On critical anomaly, auto-dials first emergency contact
@@ -24,7 +24,7 @@ class MonitoringService extends ChangeNotifier {
   final AppleNativeBridge _bridge;
   final MediGuardApiService _api;
 
-  static const pollInterval = Duration(minutes: 3);
+  static const pollInterval = Duration(seconds: 10);
 
   /// Minimum gap between auto-emergency alerts (to avoid spam)
   static const _alertCooldown = Duration(minutes: 30);
@@ -51,10 +51,10 @@ class MonitoringService extends ChangeNotifier {
   DateTime? _monitoringEnd;
   DateTime? _nextTickAt;
   DateTime? _lastReportedAt;
-  DateTime? _lastAlertedAt;  // separate cooldown for auto emergency alerts
+  DateTime? _lastAlertedAt;
 
   Timer? _pollTimer;
-  Timer? _uiTimer; // 1-second countdown updater
+  Timer? _uiTimer;
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -66,10 +66,8 @@ class MonitoringService extends ChangeNotifier {
   }) async {
     error = null;
     try {
-      // Request HealthKit permissions
       await _bridge.requestHealthPermissions();
 
-      // Tell native layer to start monitoring window
       await _bridge.startMonitoring(
         logId: logId,
         start: start,
@@ -88,7 +86,6 @@ class MonitoringService extends ChangeNotifier {
 
       _updateCountdowns();
 
-      // 1-second UI countdown timer
       _uiTimer?.cancel();
       _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         _updateCountdowns();
@@ -96,7 +93,6 @@ class MonitoringService extends ChangeNotifier {
         notifyListeners();
       });
 
-      // 3-minute data collection poll
       _scheduleNextPoll();
 
       notifyListeners();
@@ -123,7 +119,24 @@ class MonitoringService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> manualRefresh() => _tick();
+  /// Reads a fresh snapshot regardless of whether monitoring is active.
+  Future<void> manualRefresh() async {
+    if (isMonitoring) {
+      await _tick();
+      return;
+    }
+    // Passive read — request permissions (no-op if already granted), then fetch.
+    try {
+      await _bridge.requestHealthPermissions();
+      final snapshot = await _bridge.latestSnapshot();
+      if (snapshot != null) {
+        latestSnapshot = snapshot;
+        isWatchSource = snapshot.sourceDeviceName?.toLowerCase().contains('watch') == true
+            || snapshot.source.toLowerCase().contains('watch');
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
 
   // ── Internal ────────────────────────────────────────────────────────────────
 
@@ -144,7 +157,6 @@ class MonitoringService extends ChangeNotifier {
     }
 
     try {
-      // Read latest health data (Apple Watch syncs to HealthKit automatically)
       final snapshot = await _bridge.latestSnapshot();
       if (snapshot != null) {
         latestSnapshot = snapshot;
@@ -152,7 +164,6 @@ class MonitoringService extends ChangeNotifier {
             || snapshot.source.toLowerCase().contains('watch');
       }
 
-      // Core ML anomaly prediction
       if (snapshot != null) {
         final result = await _bridge.predictAnomaly(
           medicationLogId: activeLogId!,
@@ -163,7 +174,6 @@ class MonitoringService extends ChangeNotifier {
         confidence = (p['confidence'] as num?)?.toDouble() ?? 0;
         anomalyType = p['anomaly_type'] as String?;
 
-        // Auto-report to backend if anomaly detected
         if (anomalyLevel > 0 && confidence >= 0.6 && _canReport()) {
           _lastReportedAt = DateTime.now();
           await _api.reportAnomaly(AnomalyReport(
@@ -175,7 +185,6 @@ class MonitoringService extends ChangeNotifier {
           ));
         }
 
-        // Auto-alert emergency contacts if anomaly level is high enough
         if (anomalyLevel > 0 && confidence >= 0.6 && _canAlert()) {
           _lastAlertedAt = DateTime.now();
           await _sendAutoEmergencyAlert(anomalyLevel, anomalyType);
@@ -183,7 +192,6 @@ class MonitoringService extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('MonitoringService._tick error: $e');
-      // Don't stop monitoring on a single failed tick
     }
     notifyListeners();
   }
@@ -203,7 +211,6 @@ class MonitoringService extends ChangeNotifier {
       final contacts = await _api.fetchEmergencyContacts();
       if (contacts.isEmpty) return;
 
-      // Build message describing the anomaly
       final typeLabel = switch (type) {
         'high_hr'       => 'elevated heart rate (${latestSnapshot?.heartRate?.round()} BPM)',
         'low_spo2'      => 'low blood oxygen (${latestSnapshot?.spo2?.round()}%)',
@@ -219,13 +226,11 @@ class MonitoringService extends ChangeNotifier {
           '$severity [MediGuard] Anomaly detected$medPart: $typeLabel. '
           'Please check on them immediately!';
 
-      // Send iMessage to all contacts
       await _bridge.sendIMessage(
         contacts: contacts.map((c) => {'phone': c.phone}).toList(),
         message: message,
       );
 
-      // On critical anomaly, also auto-dial the first contact
       if (level >= 2) {
         await _bridge.emergencyCall(number: contacts.first.phone);
       }

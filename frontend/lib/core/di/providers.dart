@@ -133,6 +133,7 @@ final scanControllerProvider = ChangeNotifierProvider<ScanController>((ref) {
     ref.watch(apiServiceProvider),
     ref.watch(medicationNotificationServiceProvider),
     ref.watch(medicationIntakeControllerProvider),
+    ref.read(monitoringServiceProvider),
   );
 });
 
